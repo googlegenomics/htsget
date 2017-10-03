@@ -21,6 +21,7 @@ import (
 	"cloud.google.com/go/storage"
 	"github.com/googlegenomics/htsget/internal/bam"
 	"github.com/googlegenomics/htsget/internal/bgzf"
+	"github.com/googlegenomics/htsget/internal/cram"
 	"github.com/googlegenomics/htsget/internal/genomics"
 )
 
@@ -30,7 +31,7 @@ type readsRequest struct {
 	region         genomics.Region
 }
 
-func (req *readsRequest) handle(ctx context.Context) ([]*bgzf.Chunk, error) {
+func (req *readsRequest) handleBAM(ctx context.Context) ([]interface{}, error) {
 	index, err := req.indexObject.NewReader(ctx)
 	if err != nil {
 		return nil, newStorageError("opening index", err)
@@ -41,5 +42,31 @@ func (req *readsRequest) handle(ctx context.Context) ([]*bgzf.Chunk, error) {
 	if err != nil {
 		return nil, fmt.Errorf("reading index: %v", err)
 	}
-	return bgzf.Merge(chunks, req.blockSizeLimit), nil
+
+	var ret []interface{}
+	for _, c := range bgzf.Merge(chunks, req.blockSizeLimit) {
+		ret = append(ret, c)
+	}
+	return ret, nil
+}
+
+func (req *readsRequest) handleCRAM(ctx context.Context) ([]interface{}, error) {
+	crai, err := req.indexObject.NewReader(ctx)
+	if err != nil {
+		return nil, newStorageError("opening index", err)
+	}
+	defer crai.Close()
+
+	index, err := cram.ReadIndex(crai)
+	if err != nil {
+		return nil, newStorageError("reading index", err)
+	}
+
+	chunks := index.GetChunksForRegion(req.region)
+
+	var ret []interface{}
+	for _, c := range cram.SortAndMerge(chunks, req.blockSizeLimit) {
+		ret = append(ret, c)
+	}
+	return ret, nil
 }

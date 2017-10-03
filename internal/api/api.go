@@ -38,6 +38,7 @@ import (
 	"github.com/googlegenomics/htsget/internal/analytics"
 	"github.com/googlegenomics/htsget/internal/bam"
 	"github.com/googlegenomics/htsget/internal/bgzf"
+	"github.com/googlegenomics/htsget/internal/cram"
 	"github.com/googlegenomics/htsget/internal/genomics"
 	"golang.org/x/oauth2"
 	"google.golang.org/api/googleapi"
@@ -45,10 +46,12 @@ import (
 )
 
 const (
-	readsPath = "/reads/"
-	blockPath = "/block/"
+	readsPath     = "/reads/"
+	bamBlockPath  = "/block/bam/"
+	cramBlockPath = "/block/cram/"
 
-	eofMarkerDataURL = "data:;base64,H4sIBAAAAAAA/wYAQkMCABsAAwAAAAAAAAAAAA=="
+	bamEOFMarkerDataURL  = "data:;base64,H4sIBAAAAAAA/wYAQkMCABsAAwAAAAAAAAAAAA=="
+	cramEOFMarkerDataURL = "data:;base64,DwAAAP////8P4EVPRgAAAAABAAW92U8AAQAGBgEAAQABAO5jAUs="
 )
 
 var (
@@ -92,7 +95,8 @@ func (server *Server) Whitelist(buckets []string) {
 // bytes, though BAM chunks that already exceed this size will not be split.
 func (server *Server) Export(mux *http.ServeMux) {
 	mux.HandleFunc(readsPath, server.serveReads)
-	mux.HandleFunc(blockPath, server.serveBlocks)
+	mux.HandleFunc(bamBlockPath, server.serveBAMBlocks)
+	mux.HandleFunc(cramBlockPath, server.serveCRAMBlocks)
 }
 
 func (server *Server) serveReads(w http.ResponseWriter, req *http.Request) {
@@ -102,8 +106,40 @@ func (server *Server) serveReads(w http.ResponseWriter, req *http.Request) {
 	track(analytics.Event("Reads", "Reads Request Received", "", nil))
 
 	query := req.URL.Query()
-	if err := parseFormat(query.Get("format")); err != nil {
-		writeError(w, newUnsupportedFormatError(err))
+	format := query.Get("format")
+	if format == "" {
+		format = "BAM"
+	}
+
+	supportedFormats := map[string]struct {
+		blockPath        string
+		eofMarkerDataURL string
+		indexExtension   string
+		getReferenceID   func(io.Reader, string) (int32, error)
+		handle           func(*readsRequest) ([]interface{}, error)
+	}{
+		"BAM": {
+			bamBlockPath,
+			bamEOFMarkerDataURL,
+			".bai",
+			bam.GetReferenceID,
+			func(req *readsRequest) ([]interface{}, error) {
+				return req.handleBAM(ctx)
+			},
+		},
+		"CRAM": {
+			cramBlockPath,
+			cramEOFMarkerDataURL,
+			".crai",
+			cram.GetReferenceID,
+			func(req *readsRequest) ([]interface{}, error) {
+				return req.handleCRAM(ctx)
+			},
+		},
+	}
+	formatParams, ok := supportedFormats[format]
+	if !ok {
+		writeError(w, newUnsupportedFormatError(fmt.Errorf("unsupported format %q", format)))
 		return
 	}
 
@@ -131,7 +167,7 @@ func (server *Server) serveReads(w http.ResponseWriter, req *http.Request) {
 	}
 	defer data.Close()
 
-	region, err := parseRegion(query, data)
+	region, err := parseRegion(query, data, formatParams.getReferenceID)
 	if err != nil {
 		writeError(w, newInvalidInputError("parsing region", err))
 		return
@@ -143,12 +179,12 @@ func (server *Server) serveReads(w http.ResponseWriter, req *http.Request) {
 	}
 
 	request := &readsRequest{
-		indexObject:    gcs.Bucket(bucket).Object(object + ".bai"),
+		indexObject:    gcs.Bucket(bucket).Object(object + formatParams.indexExtension),
 		blockSizeLimit: server.blockSizeLimit,
 		region:         region,
 	}
 
-	chunks, err := request.handle(ctx)
+	chunks, err := formatParams.handle(request)
 	if err != nil {
 		track(analytics.Event("Reads", "Reads Internal Error", "", nil))
 		writeError(w, err)
@@ -164,7 +200,7 @@ func (server *Server) serveReads(w http.ResponseWriter, req *http.Request) {
 		}
 		base += req.Host
 	}
-	base += strings.Replace(req.URL.Path, readsPath, blockPath, 1)
+	base += strings.Replace(req.URL.Path, readsPath, formatParams.blockPath, 1)
 
 	var urls []map[string]interface{}
 	for _, chunk := range chunks {
@@ -188,11 +224,11 @@ func (server *Server) serveReads(w http.ResponseWriter, req *http.Request) {
 		}
 		urls = append(urls, url)
 	}
-	urls = append(urls, map[string]interface{}{"url": eofMarkerDataURL})
+	urls = append(urls, map[string]interface{}{"url": formatParams.eofMarkerDataURL})
 
 	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"htsget": map[string]interface{}{
-			"format": "BAM",
+			"format": format,
 			"urls":   urls,
 		}})
 
@@ -201,8 +237,30 @@ func (server *Server) serveReads(w http.ResponseWriter, req *http.Request) {
 	track(analytics.Event("Reads", "Reads Response Sent", "", nil))
 }
 
-func (server *Server) serveBlocks(w http.ResponseWriter, req *http.Request) {
-	bucket, object, err := parseID(req.URL.Path[len(blockPath):])
+func (server *Server) serveBAMBlocks(w http.ResponseWriter, req *http.Request) {
+	var chunk bgzf.Chunk
+	server.blockHelper(bamBlockPath, w, req, &chunk, func(object *storage.ObjectHandle) (io.ReadCloser, error) {
+		response, err := handleBAMRequest(req.Context(), object, chunk)
+		if err != nil {
+			return nil, fmt.Errorf("handling BAM request: %v", err)
+		}
+		return response, nil
+	})
+}
+
+func (server *Server) serveCRAMBlocks(w http.ResponseWriter, req *http.Request) {
+	var chunk cram.Chunk
+	server.blockHelper(cramBlockPath, w, req, &chunk, func(object *storage.ObjectHandle) (io.ReadCloser, error) {
+		response, err := handleCRAMRequest(req.Context(), object, chunk)
+		if err != nil {
+			return nil, fmt.Errorf("handling CRAM request: %v", err)
+		}
+		return response, nil
+	})
+}
+
+func (server *Server) blockHelper(path string, w http.ResponseWriter, req *http.Request, query interface{}, fn func(*storage.ObjectHandle) (io.ReadCloser, error)) {
+	bucket, object, err := parseID(req.URL.Path[len(path):])
 	if err != nil {
 		writeError(w, newInvalidInputError("parsing readset ID", err))
 		return
@@ -213,8 +271,7 @@ func (server *Server) serveBlocks(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	var chunk bgzf.Chunk
-	if err := decodeRawQuery(req.URL.RawQuery, &chunk); err != nil {
+	if err := decodeRawQuery(req.URL.RawQuery, query); err != nil {
 		writeError(w, fmt.Errorf("decoding raw query: %v", err))
 		return
 	}
@@ -225,14 +282,9 @@ func (server *Server) serveBlocks(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	request := &blockRequest{
-		object: gcs.Bucket(bucket).Object(object),
-		chunk:  chunk,
-	}
-
-	response, err := request.handle(req.Context())
+	response, err := fn(gcs.Bucket(bucket).Object(object))
 	if err != nil {
-		writeError(w, err)
+		writeError(w, fmt.Errorf("block handler: %v", err))
 		return
 	}
 	defer response.Close()
@@ -275,14 +327,7 @@ func parseID(path string) (string, string, error) {
 	return "", "", errInvalidOrUnspecifiedID
 }
 
-func parseFormat(format string) error {
-	if format != "" && format != "BAM" {
-		return fmt.Errorf("unsupported format %q", format)
-	}
-	return nil
-}
-
-func parseRegion(query url.Values, data io.Reader) (genomics.Region, error) {
+func parseRegion(query url.Values, r io.Reader, getReferenceID func(io.Reader, string) (int32, error)) (genomics.Region, error) {
 	var (
 		name  = query.Get("referenceName")
 		start = query.Get("start")
@@ -295,7 +340,7 @@ func parseRegion(query url.Values, data io.Reader) (genomics.Region, error) {
 		return genomics.Region{}, errMissingReferenceName
 	}
 
-	id, err := bam.GetReferenceID(data, name)
+	id, err := getReferenceID(r, name)
 	if err != nil {
 		return genomics.Region{}, fmt.Errorf("resolving reference %q: %v", name, err)
 	}
