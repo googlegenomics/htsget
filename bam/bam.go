@@ -162,6 +162,9 @@ func Read(bai io.Reader, region genomics.Region) ([]*bgzf.Chunk, error) {
 		if err := read(bai, &intervals); err != nil {
 			return nil, fmt.Errorf("reading interval count: %v", err)
 		}
+		if intervals < 0 {
+			return nil, fmt.Errorf("invalid interval count (%d intervals)", intervals)
+		}
 		offsets := make([]uint64, intervals)
 		if err := read(bai, &offsets); err != nil {
 			return nil, fmt.Errorf("reading offsets: %v", err)
