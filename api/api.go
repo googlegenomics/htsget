@@ -163,7 +163,13 @@ func (server *Server) serveReads(w http.ResponseWriter, req *http.Request) {
 			"url": fmt.Sprintf("%s?%s", base, base64.URLEncoding.EncodeToString(buf.Bytes())),
 		}
 		if len(headers) > 0 {
-			url["headers"] = headers
+			// The htsget specification does not support multiple values for a single
+			// header.
+			flattened := make(map[string]string)
+			for k, v := range headers {
+				flattened[k] = v[0]
+			}
+			url["headers"] = flattened
 		}
 		urls = append(urls, url)
 	}
