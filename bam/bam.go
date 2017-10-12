@@ -121,7 +121,7 @@ func Read(bai io.Reader, region genomics.Region) ([]*bgzf.Chunk, error) {
 		return nil, fmt.Errorf("reading reference count: %v", err)
 	}
 
-	bins := binsForRange(region.Start, maximumReadLength)
+	bins := binsForRange(region.Start, region.End)
 
 	header := &bgzf.Chunk{End: bgzf.LastAddress}
 	chunks := []*bgzf.Chunk{header}
