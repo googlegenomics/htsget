@@ -21,38 +21,42 @@ This will produce a binary in $GOPATH/bin called htsget-server.
 
 You can use htsget-server in one of two modes:
 
-* localhost only "proxy" mode.  When used in this way, the htsget-server uses
-the application default credentials stored on the machine it is running on to
-access resources in GCS.  It listens only on localhost and does not use TLS.
-This is useful if you want to access data via the htsget protocol on a machine
-that is already running htslib based tools (like samtools).
+* Insecure mode for public resources.  When used in this way, the htsget-server
+does not use TLS and does not authenticate requests it makes to Google Cloud
+storage.  This is useful if you want to access public data via the htsget
+protocol on a machine that is already running htslib based tools (like
+samtools).
 
-* TLS serving mode.  In this mode, the server requires a TLS certificate and
-key to be passed as command line flags.  It will then listen on all
-interfaces and accept requests secured via TLS.  If the request contains an
-OAuth2 Bearer Access Token, it will be used to fetch data from GCS.
-Otherwise, the application default credentials are used as in the previous
-mode.  This is useful when sharing data to other users or organizations via
-the htsget protocol.
+* Secure mode with authentication.  In this mode, the server requires a TLS
+certificate and key to be passed as command line flags.  It will then listen on
+all interfaces and accept requests secured via TLS.  Each request must contain
+an OAuth2 Bearer Access Token which will be used to fetch data from GCS.
 
 # Example usage
 
-## localhost only mode
+## Insecure mode
 
 ```
 $ bin/htsget-server --port=1234 &
-$ samtools flagstat http://localhost:1234/reads/my-bucket-name/test.bam
+$ samtools flagstat http://localhost:1234/reads/public-bucket/test.bam
 ```
 
 This will use htsget to retrieve data from 'test.bam' stored in the GCS bucket
-'my-bucket-name'.
+'public-bucket'.
 
-## TLS serving mode
+## Secure mode
 
 ```
-$ bin/htsget-server --port=443 --https_cert=server.crt --https_key=server.key &
+$ bin/htsget-server --secure=true --port=443 --https_cert=server.crt --https_key=server.key &
+$ export CURL_CA_BUNDLE=server.crt
+$ export HTS_AUTH_LOCATION=/path/to/my-oauth2-token
+$ samtools flagstat http://localhost:1234/reads/private-bucket/test.bam
 ```
 
 The file `server.crt` and `server.key` can be generated using the
 [generate_cert](https://golang.org/src/crypto/tls/generate_cert.go) tool that
 comes with Go, or using `openssl`.
+
+Note that you will require versions of `samtools` and `htslib` that support the
+environment variables used above (`CURL_CA_BUNDLE` and `HTS_AUTH_LOCATION`).
+This support was added in October of 2017.
