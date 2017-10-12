@@ -1,0 +1,426 @@
+// Copyright 2017 Google Inc.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// https://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// Package api implements the htsget readset retrieval API.
+//
+// The version implemented by this package is v0.2rc defined at:
+// http://samtools.github.io/hts-specs/htsget.html.
+package api
+
+import (
+	"bytes"
+	"context"
+	"encoding/base64"
+	"encoding/gob"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+	"log"
+	"net/http"
+	"net/url"
+	"strconv"
+	"strings"
+	"sync"
+
+	"cloud.google.com/go/storage"
+	"github.com/googlegenomics/htsget/analytics"
+	"github.com/googlegenomics/htsget/bam"
+	"github.com/googlegenomics/htsget/bgzf"
+	"github.com/googlegenomics/htsget/genomics"
+	"golang.org/x/oauth2"
+	"google.golang.org/api/googleapi"
+	"google.golang.org/api/option"
+)
+
+const (
+	readsPath = "/reads/"
+	blockPath = "/block/"
+
+	eofMarkerDataURL = "data:;base64,H4sIBAAAAAAA/wYAQkMCABsAAwAAAAAAAAAAAA=="
+)
+
+var (
+	errInvalidOrUnspecifiedID = errors.New("invalid or unspecified ID")
+	errNoFormatSpecified      = errors.New("no format specified")
+	errMissingReferenceName   = errors.New("no reference name specified")
+	errMissingOrInvalidToken  = errors.New("missing or invalid token")
+)
+
+// NewStorageClientFunc is the type of function that constructs the appropriate
+// storage.Client to satisfy the incoming request. Any headers that caused this
+// particular client to be created are returned to allow block requests to be
+// generated correctly.
+type NewStorageClientFunc func(*http.Request) (*storage.Client, http.Header, error)
+
+// Server provides an htsget protocol server.  Must be created with NewServer.
+type Server struct {
+	newStorageClient NewStorageClientFunc
+	blockSizeLimit   uint64
+}
+
+// NewServer returns a new Server configured to use newStorageClient and
+// blockSizeLimit. The server will call storageClientFunc on each request to
+// determine which GCS storage client to use.
+func NewServer(newStorageClient NewStorageClientFunc, blockSizeLimit uint64) *Server {
+	return &Server{newStorageClient, blockSizeLimit}
+}
+
+// Export registers the htsget API endpoint with mux and reads data using gcs.
+// Blocks returned from the endpoint will generally not exceed blockSizeLimit
+// bytes, though BAM chunks that already exceed this size will not be split.
+func (server *Server) Export(mux *http.ServeMux) {
+	mux.HandleFunc(readsPath, server.serveReads)
+	mux.HandleFunc(blockPath, server.serveBlocks)
+}
+
+func (server *Server) serveReads(w http.ResponseWriter, req *http.Request) {
+	ctx := req.Context()
+
+	track := analytics.TrackerFromContext(ctx)
+	track(analytics.Event("Reads", "Reads Request Received", "", nil))
+
+	query := req.URL.Query()
+	if err := parseFormat(query.Get("format")); err != nil {
+		writeError(w, newUnsupportedFormatError(err))
+		return
+	}
+
+	bucket, object, err := parseID(req.URL.Path[len(readsPath):])
+	if err != nil {
+		writeError(w, newInvalidInputError("parsing readset ID", err))
+		return
+	}
+
+	gcs, headers, err := server.newStorageClient(req)
+	if err != nil {
+		writeError(w, newStorageError("creating client", err))
+		return
+	}
+
+	data, err := gcs.Bucket(bucket).Object(object).NewReader(ctx)
+	if err != nil {
+		writeError(w, newStorageError("opening data", err))
+		return
+	}
+	defer data.Close()
+
+	region, err := parseRegion(query, data)
+	if err != nil {
+		writeError(w, newInvalidInputError("parsing region", err))
+		return
+	}
+
+	if region.End > 0 && region.Start > region.End {
+		writeError(w, newInvalidRangeError(fmt.Errorf("%s: start > end", region)))
+		return
+	}
+
+	request := &readsRequest{
+		indexObject:    gcs.Bucket(bucket).Object(object + ".bai"),
+		blockSizeLimit: server.blockSizeLimit,
+		region:         region,
+	}
+
+	chunks, err := request.handle(ctx)
+	if err != nil {
+		track(analytics.Event("Reads", "Reads Internal Error", "", nil))
+		writeError(w, err)
+		return
+	}
+
+	var base string
+	if req.Host != "" {
+		if req.TLS != nil {
+			base = "https://"
+		} else {
+			base = "http://"
+		}
+		base += req.Host
+	}
+	base += strings.Replace(req.URL.Path, readsPath, blockPath, 1)
+
+	var urls []map[string]interface{}
+	for _, chunk := range chunks {
+		var buf bytes.Buffer
+		if err := gob.NewEncoder(&buf).Encode(chunk); err != nil {
+			writeError(w, fmt.Errorf("encoding chunk: %v", err))
+			return
+		}
+
+		url := map[string]interface{}{
+			"url": fmt.Sprintf("%s?%s", base, base64.URLEncoding.EncodeToString(buf.Bytes())),
+		}
+		if len(headers) > 0 {
+			url["headers"] = headers
+		}
+		urls = append(urls, url)
+	}
+	urls = append(urls, map[string]interface{}{"url": eofMarkerDataURL})
+
+	writeJSON(w, http.StatusOK, map[string]interface{}{
+		"htsget": map[string]interface{}{
+			"format": "BAM",
+			"urls":   urls,
+		}})
+
+	count := int64(len(urls))
+	track(analytics.Event("Reads", "Reads Response URL Count", "", &count))
+	track(analytics.Event("Reads", "Reads Response Sent", "", nil))
+}
+
+func (server *Server) serveBlocks(w http.ResponseWriter, req *http.Request) {
+	bucket, object, err := parseID(req.URL.Path[len(blockPath):])
+	if err != nil {
+		writeError(w, newInvalidInputError("parsing readset ID", err))
+		return
+	}
+
+	var chunk bgzf.Chunk
+	if err := decodeRawQuery(req.URL.RawQuery, &chunk); err != nil {
+		writeError(w, fmt.Errorf("decoding raw query: %v", err))
+		return
+	}
+
+	gcs, _, err := server.newStorageClient(req)
+	if err != nil {
+		writeError(w, fmt.Errorf("creating storage client: %v", err))
+		return
+	}
+
+	request := &blockRequest{
+		object: gcs.Bucket(bucket).Object(object),
+		chunk:  chunk,
+	}
+
+	response, err := request.handle(req.Context())
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	defer response.Close()
+
+	w.Header().Add("Content-type", "application/octet-stream")
+	w.WriteHeader(http.StatusOK)
+	if _, err := io.Copy(w, response); err != nil {
+		log.Printf("Failed to copy response: %v", err)
+		return
+	}
+}
+
+func decodeRawQuery(rawQuery string, v interface{}) error {
+	b, err := base64.URLEncoding.DecodeString(rawQuery)
+	if err != nil {
+		return fmt.Errorf("base64: %v", err)
+	}
+
+	if err := gob.NewDecoder(bytes.NewBuffer(b)).Decode(v); err != nil {
+		return fmt.Errorf("gob: %v", err)
+	}
+
+	return nil
+}
+
+// parseID parses path and returns a GCS bucket and object, or an error.
+func parseID(path string) (string, string, error) {
+	if parts := strings.SplitN(path, "/", 2); len(parts) == 2 {
+		if parts[0] != "" && parts[1] != "" {
+			return parts[0], parts[1], nil
+		}
+	}
+	return "", "", errInvalidOrUnspecifiedID
+}
+
+func parseFormat(format string) error {
+	if format != "" && format != "BAM" {
+		return fmt.Errorf("unsupported format %q", format)
+	}
+	return nil
+}
+
+func parseRegion(query url.Values, data io.Reader) (genomics.Region, error) {
+	var (
+		name  = query.Get("referenceName")
+		start = query.Get("start")
+		end   = query.Get("end")
+	)
+	if name == "" && start == "" && end == "" {
+		return genomics.AllMappedReads, nil
+	}
+	if name == "" {
+		return genomics.Region{}, errMissingReferenceName
+	}
+
+	id, err := bam.GetReferenceID(data, name)
+	if err != nil {
+		return genomics.Region{}, fmt.Errorf("resolving reference %q: %v", name, err)
+	}
+
+	region := genomics.Region{ReferenceID: id}
+
+	if start != "" {
+		n, err := strconv.ParseUint(start, 10, 32)
+		if err != nil {
+			return genomics.Region{}, fmt.Errorf("parsing start: %v", err)
+		}
+		region.Start = uint32(n)
+	}
+
+	if end != "" {
+		n, err := strconv.ParseUint(end, 10, 32)
+		if err != nil {
+			return genomics.Region{}, fmt.Errorf("parsing end: %v", err)
+		}
+		region.End = uint32(n)
+	}
+
+	return region, nil
+}
+
+// apiError is used to capture errors that have been defined in the API.
+type apiError struct {
+	name  string
+	code  int
+	cause error
+}
+
+func (err *apiError) Error() string {
+	return fmt.Sprintf("%s (%d): %v", err.name, err.code, err.cause)
+}
+
+func newApiError(name string, code int, context string, err error) error {
+	return &apiError{name, code, fmt.Errorf("%s: %v", context, err)}
+}
+
+func newInvalidAuthenticationError(context string, err error) error {
+	return newApiError("InvalidAuthentication", http.StatusUnauthorized, context, err)
+}
+
+func newInvalidInputError(context string, err error) error {
+	return newApiError("InvalidInput", http.StatusBadRequest, context, err)
+}
+
+func newInvalidRangeError(err error) error {
+	return &apiError{"InvalidRange", http.StatusBadRequest, err}
+}
+
+func newPermissionDeniedError(context string, err error) error {
+	return newApiError("PermissionDenied", http.StatusForbidden, context, err)
+}
+
+func newUnsupportedFormatError(err error) error {
+	return &apiError{"UnsupportedFormat", http.StatusBadRequest, err}
+}
+
+func newNotFoundError(context string, err error) error {
+	return newApiError("NotFound", http.StatusNotFound, context, err)
+}
+
+func newStorageError(context string, err error) error {
+	if err == errMissingOrInvalidToken {
+		return newPermissionDeniedError(context, err)
+	}
+	if err == storage.ErrObjectNotExist {
+		return newNotFoundError("object does not exist", err)
+	}
+	if err, ok := err.(*googleapi.Error); ok {
+		switch err.Code {
+		case http.StatusUnauthorized:
+			return newInvalidAuthenticationError(context, err)
+		case http.StatusForbidden:
+			return newPermissionDeniedError(context, err)
+		}
+	}
+	return err
+}
+
+// writeError writes either a JSON object or bare HTTP error describing err to
+// w.  A JSON object is written only when the error has a name and code defined
+// by the htsget specification.
+func writeError(w http.ResponseWriter, err error) {
+	if err, ok := err.(*apiError); ok {
+		writeJSON(w, err.code, map[string]interface{}{
+			"error":   err.name,
+			"message": fmt.Sprintf("%s: %v", http.StatusText(err.code), err.cause),
+		})
+		return
+	}
+
+	writeHTTPError(w, http.StatusInternalServerError, err)
+}
+
+func writeHTTPError(w http.ResponseWriter, code int, err error) {
+	http.Error(w, fmt.Sprintf("%s: %v", http.StatusText(code), err), code)
+}
+
+func writeJSON(w http.ResponseWriter, code int, v interface{}) {
+	w.Header().Add("Content-type", "application/json")
+	w.WriteHeader(code)
+	json.NewEncoder(w).Encode(v)
+}
+
+var (
+	defaultStorageClient           *storage.Client
+	initializeDefaultStorageClient sync.Once
+)
+
+func newClientWithOptions(opts ...option.ClientOption) (*storage.Client, http.Header, error) {
+	initializeDefaultStorageClient.Do(func() {
+		gcs, err := storage.NewClient(context.Background(), opts...)
+		if err != nil {
+			log.Fatalf("Creating default storage client: %v", err)
+		}
+		defaultStorageClient = gcs
+	})
+	return defaultStorageClient, nil, nil
+}
+
+// NewDefaultClient returns a storage client that uses the application default
+// credentials.  It caches the storage client for efficiency.
+func NewDefaultClient(_ *http.Request) (*storage.Client, http.Header, error) {
+	return newClientWithOptions()
+}
+
+// NewPublicClient returns a storage client that does not use any form of
+// client authorization.  It can only be used to read publicly-readable
+// objects. It caches the storage client for efficiency.
+func NewPublicClient(_ *http.Request) (*storage.Client, http.Header, error) {
+	return newClientWithOptions(option.WithHTTPClient(http.DefaultClient))
+}
+
+// NewClientFromBearerToken constructs a storage client that uses the OAuth2
+// bearer token found in req to make storage requests.  It returns the
+// authorization header containing the bearer token as well to allow subsequent
+// requests to be authenticated correctly.
+func NewClientFromBearerToken(req *http.Request) (*storage.Client, http.Header, error) {
+	authorization := req.Header.Get("Authorization")
+
+	fields := strings.Split(authorization, " ")
+	if len(fields) != 2 || fields[0] != "Bearer" {
+		return nil, nil, errMissingOrInvalidToken
+	}
+
+	token := oauth2.Token{
+		TokenType:   fields[0],
+		AccessToken: fields[1],
+	}
+	client, err := storage.NewClient(req.Context(), option.WithTokenSource(oauth2.StaticTokenSource(&token)))
+	if err != nil {
+		return nil, nil, fmt.Errorf("creating client with token source: %v", err)
+	}
+
+	return client, map[string][]string{
+		"Authorization": []string{authorization},
+	}, nil
+}

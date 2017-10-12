@@ -1,0 +1,17 @@
+@HD	VN:1.4	SO:coordinate
+@SQ	SN:1	LN:249250621 UR:ftp://ftp.1000genomes.ebi.ac.uk/vol1/ftp/technical/reference/phase2_reference_assembly_sequence/hs37d5.fa.gz AS:NCBI37	M5:1b22b98cdeb4a9304cb5d48026a85128	SP:Human
+@SQ	SN:2	LN:243199373 UR:ftp://ftp.1000genomes.ebi.ac.uk/vol1/ftp/technical/reference/phase2_reference_assembly_sequence/hs37d5.fa.gz AS:NCBI37	M5:a0d9851da00400dec1098a9255ac712e	SP:Human AN:testA,testB
+@SQ	SN:5	LN:180915260	UR:ftp://ftp.1000genomes.ebi.ac.uk/vol1/ftp/technical/reference/phase2_reference_assembly_sequence/hs37d5.fa.gz	AS:NCBI37	M5:0740173db9ffd264d728f32784845cd7	SP:Human
+@PG	ID:gatk_target_interval_creator	PN:GenomeAnalysisTK	PP:sam_to_fixed_bam	VN:1.2-29-g0acaf2d	CL:java $jvm_args -jar GenomeAnalysisTK.jar -T RealignerTargetCreator -R $reference_fasta -o $intervals_file -known $known_indels_file(s) 
+@PG	ID:bam_realignment_around_known_indels	PN:GenomeAnalysisTK	PP:gatk_target_interval_creator	VN:1.2-29-g0acaf2d	CL:java $jvm_args -jar GenomeAnalysisTK.jar -T IndelRealigner -R $reference_fasta -I $bam_file -o $realigned_bam_file -targetIntervals $intervals_file -known $known_indels_file(s) -LOD 0.4 -model KNOWNS_ONLY -compress 0 --disable_bam_indexing
+@PG	ID:bam_count_covariates	PN:GenomeAnalysisTK	PP:bam_realignment_around_known_indels	VN:1.2-29-g0acaf2d	CL:java $jvm_args -jar GenomeAnalysisTK.jar -T CountCovariates -R $reference_fasta -I $bam_file -recalFile $bam_file.recal_data.csv -knownSites $known_sites_file(s) -l INFO -L '1;2;3;4;5;6;7;8;9;10;11;12;13;14;15;16;17;18;19;20;21;22;X;Y;MT' -cov ReadGroupCovariate -cov QualityScoreCovariate -cov CycleCovariate -cov DinucCovariate
+@PG	ID:bam_recalibrate_quality_scores	PN:GenomeAnalysisTK	PP:bam_count_covariates	VN:1.2-29-g0acaf2d	CL:java $jvm_args -jar GenomeAnalysisTK.jar -T TableRecalibration -R $reference_fasta -recalFile $bam_file.recal_data.csv -I $bam_file -o $recalibrated_bam_file -l INFO -compress 0 --disable_bam_indexing
+@PG	ID:bam_calculate_bq	PN:samtools	PP:bam_recalibrate_quality_scores	VN:0.1.17 (r973:277)	CL:samtools calmd -Erb $bam_file $reference_fasta > $bq_bam_file
+@PG	ID:bam_merge	PN:picard	PP:bam_calculate_bq	VN:1.53	CL:java $jvm_args -jar MergeSamFiles.jar INPUT=$bam_file(s) OUTPUT=$merged_bam VALIDATION_STRINGENCY=SILENT
+@PG	ID:bam_mark_duplicates	PN:picard	PP:bam_merge	VN:1.53	CL:java $jvm_args -jar MarkDuplicates.jar INPUT=$bam_file OUTPUT=$markdup_bam_file ASSUME_SORTED=TRUE METRICS_FILE=/dev/null VALIDATION_STRINGENCY=SILENT
+@PG	ID:bam_merge.1	PN:picard	PP:bam_mark_duplicates	VN:1.53	CL:java $jvm_args -jar MergeSamFiles.jar INPUT=$bam_file(s) OUTPUT=$merged_bam VALIDATION_STRINGENCY=SILENT
+@CO	$known_indels_file(s) = ftp://ftp.1000genomes.ebi.ac.uk/vol1/ftp/technical/reference/phase2_mapping_resources/ALL.wgs.indels_mills_devine_hg19_leftAligned_collapsed_double_hit.indels.sites.vcf.gz
+@CO	$known_indels_file(s) .= ftp://ftp.1000genomes.ebi.ac.uk/vol1/ftp/technical/reference/phase2_mapping_resources/ALL.wgs.low_coverage_vqsr.20101123.indels.sites.vcf.gz
+@SQ	SN:GL000226.1	LN:15008	UR:ftp://ftp.1000genomes.ebi.ac.uk/vol1/ftp/technical/reference/phase2_reference_assembly_sequence/hs37d5.fa.gz	AS:NCBI37	M5:1c1b2cd1fccbc0a99b6a447fa24d1504	SP:Human
+@SQ	SN:GL000229.1	LN:19913	UR:ftp://ftp.1000genomes.ebi.ac.uk/vol1/ftp/technical/reference/phase2_reference_assembly_sequence/hs37d5.fa.gz	AS:NCBI37	M5:d0f40ec87de311d8e715b52e4c7062e1	SP:Human
+@CO	$known_sites_file(s) = ftp://ftp.1000genomes.ebi.ac.uk/vol1/ftp/technical/reference/phase2_mapping_resources/ALL.wgs.dbsnp.build135.snps.sites.vcf.gz
