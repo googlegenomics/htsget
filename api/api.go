@@ -68,13 +68,23 @@ type NewStorageClientFunc func(*http.Request) (*storage.Client, http.Header, err
 type Server struct {
 	newStorageClient NewStorageClientFunc
 	blockSizeLimit   uint64
+	whitelist        map[string]bool
 }
 
 // NewServer returns a new Server configured to use newStorageClient and
 // blockSizeLimit. The server will call storageClientFunc on each request to
 // determine which GCS storage client to use.
 func NewServer(newStorageClient NewStorageClientFunc, blockSizeLimit uint64) *Server {
-	return &Server{newStorageClient, blockSizeLimit}
+	return &Server{newStorageClient, blockSizeLimit, make(map[string]bool)}
+}
+
+// Whitelist adds buckets to the set of buckets which the server is allowed to
+// access. If Whitelist is never called for a given Server then reads from any
+// bucket are allowed.
+func (server *Server) Whitelist(buckets []string) {
+	for _, bucket := range buckets {
+		server.whitelist[bucket] = true
+	}
 }
 
 // Export registers the htsget API endpoint with mux and reads data using gcs.
@@ -100,6 +110,11 @@ func (server *Server) serveReads(w http.ResponseWriter, req *http.Request) {
 	bucket, object, err := parseID(req.URL.Path[len(readsPath):])
 	if err != nil {
 		writeError(w, newInvalidInputError("parsing readset ID", err))
+		return
+	}
+
+	if err := server.checkWhitelist(bucket); err != nil {
+		writeError(w, newPermissionDeniedError("checking whitelist", err))
 		return
 	}
 
@@ -193,6 +208,11 @@ func (server *Server) serveBlocks(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
+	if err := server.checkWhitelist(bucket); err != nil {
+		writeError(w, newPermissionDeniedError("checking whitelist", err))
+		return
+	}
+
 	var chunk bgzf.Chunk
 	if err := decodeRawQuery(req.URL.RawQuery, &chunk); err != nil {
 		writeError(w, fmt.Errorf("decoding raw query: %v", err))
@@ -223,6 +243,13 @@ func (server *Server) serveBlocks(w http.ResponseWriter, req *http.Request) {
 		log.Printf("Failed to copy response: %v", err)
 		return
 	}
+}
+
+func (server *Server) checkWhitelist(bucket string) error {
+	if len(server.whitelist) == 0 || server.whitelist[bucket] {
+		return nil
+	}
+	return fmt.Errorf("access to bucket %s is not allowed", bucket)
 }
 
 func decodeRawQuery(rawQuery string, v interface{}) error {
