@@ -73,3 +73,13 @@ comes with Go, or using `openssl`.
 Note that you will require versions of `samtools` and `htslib` that support the
 environment variables used above (`CURL_CA_BUNDLE` and `HTS_AUTH_LOCATION`).
 This support was added in October of 2017.
+
+# Known Issues
+
+* The server isn't very efficient at limiting what reads are returned.  This is
+an area we are actively working to improve (see issue #26).
+
+* Filters on fields are ignored.  The server does not implement any filtering
+beyond read range and reference name filters.  We do not currently plan to add
+support for this.  If this is important to you, please file an issue and let us
+know.
