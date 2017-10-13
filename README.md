@@ -4,6 +4,12 @@ This repository contains an implementation of the [htsget
 protocol](http://samtools.github.io/hts-specs/htsget.html) that provides access
 to reads data stored in Google Cloud Storage buckets.
 
+Currently, only BAM is supported and the BAM index file must be colocated with
+the BAM file (that is, `sample.bam` and `sample.bam.bai` must be in the same
+GCS bucket).
+
+CRAM support will be added in the very near future.
+
 # Building the server
 
 In order to build the server, you will need the [Go](https://golang.org/) tool
@@ -17,7 +23,7 @@ $ go get https://github.com/googlegenomics/htsget/htsget-server
 
 This will produce a binary in $GOPATH/bin called htsget-server.
 
-# Running the server
+# Usage
 
 You can use htsget-server in one of two modes:
 
@@ -32,7 +38,14 @@ certificate and key to be passed as command line flags.  It will then listen on
 all interfaces and accept requests secured via TLS.  Each request must contain
 an OAuth2 Bearer Access Token which will be used to fetch data from GCS.
 
-# Example usage
+## Required file layout
+
+In either mode, read requests identify the bucket and object (file) to read.
+As an example, `/reads/testing/123.bam` will cause the server to try to access
+the GCS bucket 'testing' and read two objects: `123.bam` and `123.bam.bai`.
+The index file MUST be in the same bucket and have the `.bai` suffix.
+
+# Running the server
 
 ## Insecure mode
 
