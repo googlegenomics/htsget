@@ -1,5 +1,7 @@
 # htsget on GCS
 
+[![Build Status](https://travis-ci.org/googlegenomics/htsget.svg?branch=master)](https://travis-ci.org/googlegenomics/htsget)
+
 This repository contains an implementation of the [htsget
 protocol](http://samtools.github.io/hts-specs/htsget.html) that provides access
 to reads data stored in Google Cloud Storage buckets.
