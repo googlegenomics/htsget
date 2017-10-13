@@ -10,6 +10,10 @@ GCS bucket).
 
 CRAM support will be added in the very near future.
 
+**Note that this is an Early Access Preview release.**  If you use this software
+for production workloads, please be careful and help us by reporting problems
+using the issue tracker.
+
 # Building the server
 
 In order to build the server, you will need the [Go](https://golang.org/) tool
