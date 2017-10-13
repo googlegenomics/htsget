@@ -74,6 +74,13 @@ Note that you will require versions of `samtools` and `htslib` that support the
 environment variables used above (`CURL_CA_BUNDLE` and `HTS_AUTH_LOCATION`).
 This support was added in October of 2017.
 
+## Bucket Whitelist
+
+In both secure and insecure mode the list of buckets from which the server is
+allowed to read from can be restricted by passing a comma-separated list of
+buckets via the `--buckets` flag. If the `--buckets` flag is not specified then
+there is no restriction on the buckets from which the server can read.
+
 # Known Issues
 
 * The server isn't very efficient at limiting what reads are returned.  This is

@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strings"
 
 	"github.com/google/uuid"
 	"github.com/googlegenomics/htsget/analytics"
@@ -33,6 +34,8 @@ var (
 	secure    = flag.Bool("secure", false, "serve in HTTPS-only mode and forward client bearer tokens")
 	httpsCert = flag.String("https_cert", "", "HTTPS certificate file")
 	httpsKey  = flag.String("https_key", "", "HTTPS key file")
+
+	buckets = flag.String("buckets", "", "if set, restricts reads to a comma-separated list of buckets")
 
 	// Enable or disable anonymous usage tracking.
 	//
@@ -59,6 +62,10 @@ func main() {
 
 	server := api.NewServer(newStorageClient, *blockSize)
 	server.Export(http.DefaultServeMux)
+
+	if *buckets != "" {
+		server.Whitelist(strings.Split(*buckets, ","))
+	}
 
 	handler := http.Handler(http.DefaultServeMux)
 	if *trackUsage {
