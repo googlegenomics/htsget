@@ -91,9 +91,11 @@ there is no restriction on the buckets from which the server can read.
 # Known Issues
 
 * The server isn't very efficient at limiting what reads are returned.  This is
-an area we are actively working to improve (see issue #26).
+an area we are actively working to improve (see [issue #7][i7]).
 
 * Filters on fields are ignored.  The server does not implement any filtering
 beyond read range and reference name filters.  We do not currently plan to add
 support for this.  If this is important to you, please file an issue and let us
 know.
+
+[i7]: https://github.com/googlegenomics/htsget/issues/7
