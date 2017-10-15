@@ -23,8 +23,8 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
-	"github.com/googlegenomics/htsget/analytics"
-	"github.com/googlegenomics/htsget/api"
+	"github.com/googlegenomics/htsget/internal/analytics"
+	"github.com/googlegenomics/htsget/internal/api"
 )
 
 var (
