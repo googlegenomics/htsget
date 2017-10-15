@@ -19,9 +19,9 @@ import (
 	"fmt"
 
 	"cloud.google.com/go/storage"
-	"github.com/googlegenomics/htsget/bam"
-	"github.com/googlegenomics/htsget/bgzf"
-	"github.com/googlegenomics/htsget/genomics"
+	"github.com/googlegenomics/htsget/internal/bam"
+	"github.com/googlegenomics/htsget/internal/bgzf"
+	"github.com/googlegenomics/htsget/internal/genomics"
 )
 
 type readsRequest struct {

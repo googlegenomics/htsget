@@ -21,8 +21,8 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/googlegenomics/htsget/bgzf"
-	"github.com/googlegenomics/htsget/genomics"
+	"github.com/googlegenomics/htsget/internal/bgzf"
+	"github.com/googlegenomics/htsget/internal/genomics"
 )
 
 func TestGetReferenceID_Success(t *testing.T) {

@@ -22,7 +22,7 @@ import (
 	"io/ioutil"
 
 	"cloud.google.com/go/storage"
-	"github.com/googlegenomics/htsget/bgzf"
+	"github.com/googlegenomics/htsget/internal/bgzf"
 )
 
 type blockRequest struct {
