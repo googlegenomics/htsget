@@ -1,5 +1,6 @@
 # htsget on GCS
 
+[![GoDoc](https://godoc.org/github.com/googlegenomics/htsget?status.svg)](http://godoc.org/github.com/googlegenomics/htsget)
 [![Build Status](https://travis-ci.org/googlegenomics/htsget.svg?branch=master)](https://travis-ci.org/googlegenomics/htsget)
 
 This repository contains an implementation of the [htsget
