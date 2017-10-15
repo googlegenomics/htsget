@@ -14,7 +14,7 @@
 
 // Package api implements the htsget readset retrieval API.
 //
-// The version implemented by this package is v0.2rc defined at:
+// The version implemented by this package is v1.0.0 defined at:
 // http://samtools.github.io/hts-specs/htsget.html.
 package api
 
