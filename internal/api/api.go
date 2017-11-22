@@ -124,7 +124,7 @@ func (server *Server) serveReads(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	data, err := gcs.Bucket(bucket).Object(object).NewReader(ctx)
+	data, err := gcs.Bucket(bucket).Object(object).NewRangeReader(ctx, 0, int64(server.blockSizeLimit))
 	if err != nil {
 		writeError(w, newStorageError("opening data", err))
 		return

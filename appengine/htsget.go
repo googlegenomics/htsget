@@ -12,7 +12,7 @@ import (
 
 func init() {
 	mux := http.NewServeMux()
-	server := api.NewServer(newAppEngineClient, 16*1024*1024)
+	server := api.NewServer(newAppEngineClient, 8*1024*1024)
 	if list := os.Getenv("BUCKET_WHITELIST"); list != "" {
 		server.Whitelist(strings.Split(list, ","))
 	}
