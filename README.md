@@ -17,6 +17,22 @@ CRAM support will be added in the very near future.
 for production workloads, please be careful and help us by reporting problems
 using the issue tracker.
 
+# Quick start using Docker
+
+A docker image containing the compiled `htsget-server` binary is available at
+`gcr.io/genomics-tools/htsget`.
+
+If you have docker already installed, you can start the server and make it
+available to the host by running:
+
+```
+$ docker run -d -P gcr.io/genomics-tools/htsget
+```
+
+To determine the port that has been exposed to the host use the `docker port`
+command.  By default, the server can only access public data sources (see below
+for more information on secured access).
+
 # Building the server
 
 In order to build the server, you will need the [Go](https://golang.org/) tool
