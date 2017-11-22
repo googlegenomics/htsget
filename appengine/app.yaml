@@ -4,3 +4,7 @@ api_version: go1
 handlers:
 - url: /.*
   script: _go_app
+
+env_variables:
+# To restrict access to a set of buckets, uncomment and modify this value.
+#  BUCKET_WHITELIST: bucket1,bucket2,bucket3
