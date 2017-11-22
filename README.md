@@ -33,6 +33,25 @@ To determine the port that has been exposed to the host use the `docker port`
 command.  By default, the server can only access public data sources (see below
 for more information on secured access).
 
+# Quick start using AppEngine
+
+Google AppEngine provides a secure and automatically scalable way to run the
+htsget server.  To get started, clone the htsget source code and deploy the
+application in the `appengine` directory.
+
+```
+$ export GOPATH=$PWD
+$ go get github.com/googlegenomics/htsget/appengine
+$ gcloud app deploy src/github.com/googlegenomics/htsget/appengine
+```
+
+Once the deployment completes, you can make authorized htsget requests to
+https://your-project-id.appspot.com/.
+
+The appengine application will serve requests to any GCS bucket
+by default.  This behavior can be modified using the settings found in the
+[`app.yaml`][yaml] file.
+
 # Building the server
 
 In order to build the server, you will need the [Go](https://golang.org/) tool
@@ -115,3 +134,4 @@ support for this.  If this is important to you, please file an issue and let us
 know.
 
 [i7]: https://github.com/googlegenomics/htsget/issues/7
+[yaml]: https://github.com/googlegenomics/htsget/blob/master/appengine/app.yaml
