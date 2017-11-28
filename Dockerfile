@@ -20,8 +20,7 @@ COPY . .
 RUN go-wrapper download ./...
 RUN go-wrapper install ./...
 
-# The server port can be changed using the --port flag.
-EXPOSE 7152
+EXPOSE 80
 
 # By default, the server listens for plain HTTP requests on the default port
 # (exposed above) and serves requests to public data only.  See the README for
