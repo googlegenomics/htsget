@@ -28,7 +28,7 @@ import (
 )
 
 var (
-	port      = flag.Int("port", 7152, "HTTP service port")
+	port      = flag.Int("port", 80, "HTTP service port")
 	blockSize = flag.Uint64("block_size", 1024*1024*1024, "block size soft limit")
 
 	secure    = flag.Bool("secure", false, "serve in HTTPS-only mode and forward client bearer tokens")
