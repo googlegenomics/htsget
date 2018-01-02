@@ -22,21 +22,18 @@ import (
 	"io/ioutil"
 
 	"cloud.google.com/go/storage"
+
 	"github.com/googlegenomics/htsget/internal/bgzf"
+	"github.com/googlegenomics/htsget/internal/cram"
 )
 
-type blockRequest struct {
-	object *storage.ObjectHandle
-	chunk  bgzf.Chunk
-}
-
-func (req *blockRequest) handle(ctx context.Context) (io.ReadCloser, error) {
-	start, end := req.chunk.Start, req.chunk.End
+func handleBAMRequest(ctx context.Context, object *storage.ObjectHandle, chunk bgzf.Chunk) (io.ReadCloser, error) {
+	start, end := chunk.Start, chunk.End
 	head, tail := int64(start.BlockOffset()), int64(end.BlockOffset())
 
 	// The simple (unlikely) case is when the chunk resides in a single block.
 	if head == tail {
-		block, err := req.object.NewRangeReader(ctx, head, bgzf.MaximumBlockSize)
+		block, err := object.NewRangeReader(ctx, head, bgzf.MaximumBlockSize)
 		if err != nil {
 			return nil, newStorageError("opening block", err)
 		}
@@ -60,7 +57,7 @@ func (req *blockRequest) handle(ctx context.Context) (io.ReadCloser, error) {
 
 	// Read the first block and reconstruct a prefix block.
 	if start.DataOffset() != 0 {
-		first, err := req.object.NewRangeReader(ctx, head, bgzf.MaximumBlockSize)
+		first, err := object.NewRangeReader(ctx, head, bgzf.MaximumBlockSize)
 		if err != nil {
 			return nil, newStorageError("opening first block", err)
 		}
@@ -82,7 +79,7 @@ func (req *blockRequest) handle(ctx context.Context) (io.ReadCloser, error) {
 
 	// Read any intermediate blocks (no modification needed).
 	if tail-head > 0 {
-		r, err := req.object.NewRangeReader(ctx, head, tail-head)
+		r, err := object.NewRangeReader(ctx, head, tail-head)
 		if err != nil {
 			return nil, newStorageError("opening body block", err)
 		}
@@ -92,7 +89,7 @@ func (req *blockRequest) handle(ctx context.Context) (io.ReadCloser, error) {
 
 	// Read the last block and reconstruct a suffix block.
 	if end.DataOffset() != 0 {
-		last, err := req.object.NewRangeReader(ctx, tail, bgzf.MaximumBlockSize)
+		last, err := object.NewRangeReader(ctx, tail, bgzf.MaximumBlockSize)
 		if err != nil {
 			return nil, newStorageError("opening last block", err)
 		}
@@ -113,6 +110,15 @@ func (req *blockRequest) handle(ctx context.Context) (io.ReadCloser, error) {
 		Reader:  io.MultiReader(readers...),
 		closers: closers,
 	}, nil
+}
+
+func handleCRAMRequest(ctx context.Context, object *storage.ObjectHandle, chunk cram.Chunk) (io.ReadCloser, error) {
+	r, err := object.NewRangeReader(ctx, int64(chunk.Start), int64(chunk.Length()))
+	if err != nil {
+		return nil, newStorageError("opening block", err)
+	}
+
+	return r, nil
 }
 
 type multiReadCloser struct {
