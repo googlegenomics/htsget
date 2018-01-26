@@ -91,8 +91,8 @@ func (server *Server) Whitelist(buckets []string) {
 // Blocks returned from the endpoint will generally not exceed blockSizeLimit
 // bytes, though BAM chunks that already exceed this size will not be split.
 func (server *Server) Export(mux *http.ServeMux) {
-	mux.HandleFunc(readsPath, server.serveReads)
-	mux.HandleFunc(blockPath, server.serveBlocks)
+	mux.HandleFunc(readsPath, forwardOrigin(server.serveReads))
+	mux.HandleFunc(blockPath, forwardOrigin(server.serveBlocks))
 }
 
 func (server *Server) serveReads(w http.ResponseWriter, req *http.Request) {
@@ -456,4 +456,13 @@ func NewClientFromBearerToken(req *http.Request) (*storage.Client, http.Header, 
 	return client, map[string][]string{
 		"Authorization": []string{authorization},
 	}, nil
+}
+
+type forwardOrigin func(w http.ResponseWriter, req *http.Request)
+
+func (f forwardOrigin) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+	if origin := req.Header.Get("Origin"); origin != "" {
+		w.Header().Set("Access-Control-Allow-Origin", origin)
+	}
+	f(w, req)
 }
