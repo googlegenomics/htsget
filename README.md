@@ -60,7 +60,7 @@ chain (at least version 1.8).
 Once Go is installed, you can build the server by running:
 
 ```
-$ go get https://github.com/googlegenomics/htsget/htsget-server
+$ go get github.com/googlegenomics/htsget/htsget-server
 ```
 
 This will produce a binary in $GOPATH/bin called htsget-server.
