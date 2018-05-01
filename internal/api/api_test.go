@@ -110,6 +110,28 @@ func TestSimpleRead(t *testing.T) {
 	}
 }
 
+func TestShortNameIndexFile(t *testing.T) {
+	fakeClient := &http.Client{Transport: &fakeGCS{t}}
+	ctx := context.WithValue(context.Background(), testHTTPClientKey, fakeClient)
+
+	resp := testQuery(ctx, t, "/reads/testdata/index.sample.bam")
+
+	if got, want := resp.StatusCode, http.StatusOK; got != want {
+		t.Errorf("Wrong status code: got %v, want %v", got, want)
+	}
+}
+
+func TestNoIndexFiles(t *testing.T) {
+	fakeClient := &http.Client{Transport: &fakeGCS{t}}
+	ctx := context.WithValue(context.Background(), testHTTPClientKey, fakeClient)
+
+	resp := testQuery(ctx, t, "/reads/testdata/noindex.sample.bam")
+
+	if got, notwant := resp.StatusCode, http.StatusOK; got == notwant {
+		t.Errorf("Wrong status code: %v not wanted but returned", got)
+	}
+}
+
 // This test ensures that the undocumented error handling behaviour of the GCS
 // storage client does not change.
 func TestGoogleAPIInternalErrors(t *testing.T) {
@@ -202,7 +224,8 @@ func (fake *fakeGCS) RoundTrip(req *http.Request) (*http.Response, error) {
 
 	content, err := os.Open(filename)
 	if err != nil {
-		fake.Fatalf("Failed to open test data: %v", err)
+		fake.Logf("Failed to open test data: %v", err)
+		return nil, newStorageError("opening test data", err)
 	}
 	defer content.Close()
 

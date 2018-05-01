@@ -138,12 +138,14 @@ func (server *Server) serveReads(w http.ResponseWriter, req *http.Request) {
 	}
 
 	if region.End > 0 && region.Start > region.End {
-		writeError(w, newInvalidRangeError(fmt.Errorf("%s: start > end", region)))
+		writeError(w, newInvalidRangeError(fmt.Errorf("%v: start > end", region)))
 		return
 	}
 
 	request := &readsRequest{
-		indexObject:    gcs.Bucket(bucket).Object(object + ".bai"),
+		indexObjects: []*storage.ObjectHandle{gcs.Bucket(bucket).Object(object + ".bai"),
+			gcs.Bucket(bucket).Object(strings.TrimSuffix(object, ".bam") + ".bai"),
+		},
 		blockSizeLimit: server.blockSizeLimit,
 		region:         region,
 	}

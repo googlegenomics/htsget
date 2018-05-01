@@ -25,13 +25,20 @@ import (
 )
 
 type readsRequest struct {
-	indexObject    *storage.ObjectHandle
+	indexObjects   []*storage.ObjectHandle
 	blockSizeLimit uint64
 	region         genomics.Region
 }
 
 func (req *readsRequest) handle(ctx context.Context) ([]*bgzf.Chunk, error) {
-	index, err := req.indexObject.NewReader(ctx)
+	var index *storage.Reader
+	var err error
+	for _, indexObj := range req.indexObjects {
+		index, err = indexObj.NewReader(ctx)
+		if err == nil {
+			break
+		}
+	}
 	if err != nil {
 		return nil, newStorageError("opening index", err)
 	}
