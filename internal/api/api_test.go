@@ -17,6 +17,7 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -127,8 +128,8 @@ func TestNoIndexFiles(t *testing.T) {
 
 	resp := testQuery(ctx, t, "/reads/testdata/noindex.sample.bam")
 
-	if got, notwant := resp.StatusCode, http.StatusOK; got == notwant {
-		t.Errorf("Wrong status code: %v not wanted but returned", got)
+	if resp.StatusCode == http.StatusOK {
+		t.Error("Read succeeded with missing index file")
 	}
 }
 
@@ -224,8 +225,11 @@ func (fake *fakeGCS) RoundTrip(req *http.Request) (*http.Response, error) {
 
 	content, err := os.Open(filename)
 	if err != nil {
-		fake.Logf("Failed to open test data: %v", err)
-		return nil, newStorageError("opening test data", err)
+		return &http.Response{
+			Status:     fmt.Sprintf("Failed to open test data: %v", err),
+			StatusCode: int(http.StatusNotFound),
+			Body:       http.NoBody,
+		}, nil
 	}
 	defer content.Close()
 

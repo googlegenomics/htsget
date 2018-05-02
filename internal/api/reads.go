@@ -33,8 +33,8 @@ type readsRequest struct {
 func (req *readsRequest) handle(ctx context.Context) ([]*bgzf.Chunk, error) {
 	var index *storage.Reader
 	var err error
-	for _, indexObj := range req.indexObjects {
-		index, err = indexObj.NewReader(ctx)
+	for _, object := range req.indexObjects {
+		index, err = object.NewReader(ctx)
 		if err == nil {
 			break
 		}
