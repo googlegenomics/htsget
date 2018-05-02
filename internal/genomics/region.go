@@ -18,5 +18,5 @@ type Region struct {
 }
 
 func (region Region) String() string {
-	return fmt.Sprintf("[region:%d, start:%d, end:%d]", region.ReferenceID, region.Start, region.End)
+	return fmt.Sprintf("[region %d:%d-%d]", region.ReferenceID, region.Start, region.End)
 }
