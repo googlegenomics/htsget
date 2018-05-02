@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-FROM golang:1.9
+FROM golang:1.10
 
 WORKDIR /go/src/github.com/googlegenomics/htsget
 COPY . .
