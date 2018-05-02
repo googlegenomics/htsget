@@ -127,7 +127,7 @@ func main() {
 
 			n, err := io.Copy(w, r)
 			if err != nil {
-				log.Fatalf("Blob %d: copying data to disk", i, err)
+				log.Fatalf("Blob %d: copying data to disk: %v", i, err)
 			}
 			log.Printf("Blob %d: wrote %d bytes", i, n)
 		}
