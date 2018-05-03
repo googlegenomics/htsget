@@ -225,11 +225,9 @@ func (fake *fakeGCS) RoundTrip(req *http.Request) (*http.Response, error) {
 
 	content, err := os.Open(filename)
 	if err != nil {
-		return &http.Response{
-			Status:     fmt.Sprintf("Failed to open test data: %v", err),
-			StatusCode: int(http.StatusNotFound),
-			Body:       http.NoBody,
-		}, nil
+		response := httptest.NewRecorder()
+		http.Error(response, fmt.Sprintf("Failed to open test data: %v", err), http.StatusNotFound)
+		return response.Result(), nil
 	}
 	defer content.Close()
 
