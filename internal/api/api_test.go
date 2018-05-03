@@ -17,6 +17,7 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -107,6 +108,28 @@ func TestSimpleRead(t *testing.T) {
 		if got, want := length, int64(testBlockSizeLimit); got > want {
 			t.Errorf("Data block too large: got %v, want at most %v", got, want)
 		}
+	}
+}
+
+func TestShortNameIndexFile(t *testing.T) {
+	fakeClient := &http.Client{Transport: &fakeGCS{t}}
+	ctx := context.WithValue(context.Background(), testHTTPClientKey, fakeClient)
+
+	resp := testQuery(ctx, t, "/reads/testdata/index.sample.bam")
+
+	if got, want := resp.StatusCode, http.StatusOK; got != want {
+		t.Errorf("Wrong status code: got %v, want %v", got, want)
+	}
+}
+
+func TestNoIndexFiles(t *testing.T) {
+	fakeClient := &http.Client{Transport: &fakeGCS{t}}
+	ctx := context.WithValue(context.Background(), testHTTPClientKey, fakeClient)
+
+	resp := testQuery(ctx, t, "/reads/testdata/noindex.sample.bam")
+
+	if resp.StatusCode == http.StatusOK {
+		t.Error("Read succeeded with missing index file")
 	}
 }
 
@@ -202,7 +225,9 @@ func (fake *fakeGCS) RoundTrip(req *http.Request) (*http.Response, error) {
 
 	content, err := os.Open(filename)
 	if err != nil {
-		fake.Fatalf("Failed to open test data: %v", err)
+		response := httptest.NewRecorder()
+		http.Error(response, fmt.Sprintf("Failed to open test data: %v", err), http.StatusNotFound)
+		return response.Result(), nil
 	}
 	defer content.Close()
 
