@@ -17,12 +17,12 @@ FROM golang:1.10
 WORKDIR /go/src/github.com/googlegenomics/htsget
 COPY . .
 
-RUN go-wrapper download ./...
-RUN go-wrapper install ./...
+RUN go get -d -v ./...
+RUN go install -v ./...
 
 EXPOSE 80
 
 # By default, the server listens for plain HTTP requests on the default port
 # (exposed above) and serves requests to public data only.  See the README for
 # information about setting up secure access and other supported features.
-ENTRYPOINT ["htsget-server"]
+CMD ["htsget-server"]
