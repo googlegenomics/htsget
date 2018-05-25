@@ -25,4 +25,4 @@ EXPOSE 80
 # By default, the server listens for plain HTTP requests on the default port
 # (exposed above) and serves requests to public data only.  See the README for
 # information about setting up secure access and other supported features.
-CMD ["htsget-server"]
+ENTRYPOINT ["htsget-server"]
