@@ -1,6 +1,8 @@
 // Package genomics contains definitions related to Genomic data.
 package genomics
 
+import "fmt"
+
 // AllMappedReads defines a Region that matches all mapped reads.
 var AllMappedReads = Region{ReferenceID: -1}
 
@@ -13,4 +15,8 @@ type Region struct {
 	// reference.  If End is zero, it is treated as though it was set to the last
 	// possible read position.
 	Start, End uint32
+}
+
+func (region Region) String() string {
+	return fmt.Sprintf("[region %d:%d-%d]", region.ReferenceID, region.Start, region.End)
 }
