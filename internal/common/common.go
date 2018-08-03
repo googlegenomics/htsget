@@ -20,7 +20,7 @@ import (
 	"io"
 )
 
-// ChecksMagic checks the magic bytes from the provided reader
+// ChecksMagic checks the magic bytes from the provided reader.
 func CheckMagic(r io.Reader, want []byte) error {
 	got := make([]byte, len(want))
 	if err := Read(r, &got); err != nil {
@@ -34,7 +34,7 @@ func CheckMagic(r io.Reader, want []byte) error {
 	return nil
 }
 
-// Read reads the value from the provided reader into the provided interface
+// Read reads the value from the provided reader into the provided interface.
 func Read(r io.Reader, v interface{}) error {
 	return binary.Read(r, binary.LittleEndian, v)
 }

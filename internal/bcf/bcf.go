@@ -30,7 +30,7 @@ const (
 )
 
 // GetReferenceID retrieves the reference id of the given referenceName
-// from the provided bcf file
+// from the provided bcf file.
 func GetReferenceID(bcf io.Reader, referenceName string) (int, error) {
 	gzr, err := gzip.NewReader(bcf)
 	if err != nil {
