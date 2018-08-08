@@ -31,6 +31,7 @@ func TestExpectBytes(t *testing.T) {
 		{[]byte("BCF\x02\x02"), []byte("BCF\x02"), false},
 		{[]byte("BCF\x02\x02"), []byte(""), false},
 	}
+
 	for _, tc := range testCases {
 		t.Run(string(tc.input), func(t *testing.T) {
 			err := ExpectBytes(bytes.NewReader(tc.input), tc.want)
