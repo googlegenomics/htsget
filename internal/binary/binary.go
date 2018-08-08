@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package binary provides support for binary operations on files.
+// Package binary provides support for operating on binary data.
 package binary
 
 import (
@@ -34,7 +34,7 @@ func CheckMagic(r io.Reader, want []byte) error {
 	return nil
 }
 
-// Read reads the value from the provided reader into the provided interface.
+// Read reads a little endian value from r into v using binary.Read.
 func Read(r io.Reader, v interface{}) error {
 	return binary.Read(r, binary.LittleEndian, v)
 }
