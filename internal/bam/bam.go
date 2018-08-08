@@ -71,8 +71,8 @@ func GetReferenceID(bam io.Reader, reference string) (int32, error) {
 		return 0, fmt.Errorf("opening archive: %v", err)
 	}
 
-	if err := binary.CheckMagic(bam, []byte(bamMagic)); err != nil {
-		return 0, fmt.Errorf("checking magic: %v", err)
+	if err := binary.ExpectBytes(bam, []byte(bamMagic)); err != nil {
+		return 0, fmt.Errorf("reading magic: %v", err)
 	}
 	var length int32
 	if err := binary.Read(bam, &length); err != nil {
@@ -112,8 +112,8 @@ func GetReferenceID(bam io.Reader, reference string) (int32, error) {
 // the header and all mapped reads that fall inside the specified region.  The
 // first chunk is always the BAM header.
 func Read(bai io.Reader, region genomics.Region) ([]*bgzf.Chunk, error) {
-	if err := binary.CheckMagic(bai, []byte(baiMagic)); err != nil {
-		return nil, fmt.Errorf("checking magic: %v", err)
+	if err := binary.ExpectBytes(bai, []byte(baiMagic)); err != nil {
+		return nil, fmt.Errorf("reading magic: %v", err)
 	}
 
 	var references int32

@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package binary provides support for binary operations on files.
+// Package binary provides support for operating on binary data.
 package binary
 
 import (
@@ -22,8 +22,8 @@ import (
 	"io"
 )
 
-// ChecksMagic checks the magic bytes from the provided reader.
-func CheckMagic(r io.Reader, want []byte) error {
+// ExpectBytes reads len(want) bytes from r and returns an error on mismatch.
+func ExpectBytes(r io.Reader, want []byte) error {
 	got := make([]byte, len(want))
 	if _, err := io.ReadFull(r, got); err != nil {
 		return fmt.Errorf("reading magic: %v", err)
@@ -34,7 +34,7 @@ func CheckMagic(r io.Reader, want []byte) error {
 	return nil
 }
 
-// Read reads the value from the provided reader into the provided interface.
+// Read reads a little endian value from r into v using binary.Read.
 func Read(r io.Reader, v interface{}) error {
 	return binary.Read(r, binary.LittleEndian, v)
 }

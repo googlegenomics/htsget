@@ -19,7 +19,7 @@ import (
 	"testing"
 )
 
-func TestCheckMagic(t *testing.T) {
+func TestExpectBytes(t *testing.T) {
 	testCases := []struct {
 		magic []byte
 		input []byte
@@ -33,11 +33,11 @@ func TestCheckMagic(t *testing.T) {
 
 	for i, tc := range testCases {
 		t.Run(string(i), func(t *testing.T) {
-			err := CheckMagic(bytes.NewReader(tc.input), tc.magic)
+			err := ExpectBytes(bytes.NewReader(tc.input), tc.magic)
 			if err != nil && tc.match {
-				t.Fatalf("CheckMagic rejected valid magic %v: %v", tc.match, err)
+				t.Fatalf("ExpectBytes rejected valid magic %v: %v", tc.match, err)
 			} else if err == nil && !tc.match {
-				t.Fatalf("CheckMagic accepted invalid magic %v", tc.match)
+				t.Fatalf("ExpectBytes accepted invalid magic %v", tc.match)
 			}
 		})
 	}
