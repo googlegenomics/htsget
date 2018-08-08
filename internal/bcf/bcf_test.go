@@ -70,7 +70,7 @@ func TestContigDefinesReference(t *testing.T) {
 	for i, tc := range testCases {
 		t.Run(string(i), func(t *testing.T) {
 			if got := contigDefinesReference(tc.line, tc.ref); got != tc.want {
-				t.Fatalf("Wrong contigDefinesReference response, want %b, got %b ", tc.want, got)
+				t.Fatalf("Wrong contigDefinesReference response, want %v, got %v ", tc.want, got)
 			}
 		})
 	}
