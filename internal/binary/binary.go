@@ -22,8 +22,8 @@ import (
 	"io"
 )
 
-// ChecksMagic checks the magic bytes from the provided reader.
-func CheckMagic(r io.Reader, want []byte) error {
+// ExpectBytes reads len(want) bytes from r and returns an error on mismatch.
+func ExpectBytes(r io.Reader, want []byte) error {
 	got := make([]byte, len(want))
 	if _, err := io.ReadFull(r, got); err != nil {
 		return fmt.Errorf("reading magic: %v", err)
