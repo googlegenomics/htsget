@@ -17,18 +17,18 @@ package bam
 
 import (
 	"compress/gzip"
-	"encoding/binary"
 	"fmt"
 	"io"
 	"io/ioutil"
 
 	"github.com/googlegenomics/htsget/internal/bgzf"
+	"github.com/googlegenomics/htsget/internal/binary"
 	"github.com/googlegenomics/htsget/internal/genomics"
 )
 
 const (
-	baiMagic = 0x01494142
-	bamMagic = 0x014d4142
+	baiMagic = "BAI\x01"
+	bamMagic = "BAM\x01"
 
 	// This ID is used as a virtual bin ID for (unused) chunk metadata.
 	metadataID = 37450
@@ -71,22 +71,22 @@ func GetReferenceID(bam io.Reader, reference string) (int32, error) {
 		return 0, fmt.Errorf("opening archive: %v", err)
 	}
 
-	if err := checkMagic(bam, bamMagic); err != nil {
-		return 0, fmt.Errorf("checking magic: %v", err)
+	if err := binary.ExpectBytes(bam, []byte(bamMagic)); err != nil {
+		return 0, fmt.Errorf("reading magic: %v", err)
 	}
 	var length int32
-	if err := read(bam, &length); err != nil {
+	if err := binary.Read(bam, &length); err != nil {
 		return 0, fmt.Errorf("reading SAM header length: %v", err)
 	}
 	if _, err := io.CopyN(ioutil.Discard, bam, int64(length)); err != nil {
 		return 0, fmt.Errorf("reading past SAM header: %v", err)
 	}
 	var count int32
-	if err := read(bam, &count); err != nil {
+	if err := binary.Read(bam, &count); err != nil {
 		return 0, fmt.Errorf("reading references count: %v", err)
 	}
 	for i := int32(0); i < count; i++ {
-		if err := read(bam, &length); err != nil {
+		if err := binary.Read(bam, &length); err != nil {
 			return 0, fmt.Errorf("reading name length: %v", err)
 		}
 		// The name length includes a null terminating character.
@@ -101,7 +101,7 @@ func GetReferenceID(bam io.Reader, reference string) (int32, error) {
 			return i, nil
 		}
 		// Read and discard the reference length (4 bytes);
-		if err := read(bam, &length); err != nil {
+		if err := binary.Read(bam, &length); err != nil {
 			return 0, fmt.Errorf("reading reference length: %v", err)
 		}
 	}
@@ -112,12 +112,12 @@ func GetReferenceID(bam io.Reader, reference string) (int32, error) {
 // the header and all mapped reads that fall inside the specified region.  The
 // first chunk is always the BAM header.
 func Read(bai io.Reader, region genomics.Region) ([]*bgzf.Chunk, error) {
-	if err := checkMagic(bai, baiMagic); err != nil {
-		return nil, fmt.Errorf("checking magic: %v", err)
+	if err := binary.ExpectBytes(bai, []byte(baiMagic)); err != nil {
+		return nil, fmt.Errorf("reading magic: %v", err)
 	}
 
 	var references int32
-	if err := read(bai, &references); err != nil {
+	if err := binary.Read(bai, &references); err != nil {
 		return nil, fmt.Errorf("reading reference count: %v", err)
 	}
 
@@ -127,7 +127,7 @@ func Read(bai io.Reader, region genomics.Region) ([]*bgzf.Chunk, error) {
 	chunks := []*bgzf.Chunk{header}
 	for i := int32(0); i < references; i++ {
 		var binCount int32
-		if err := read(bai, &binCount); err != nil {
+		if err := binary.Read(bai, &binCount); err != nil {
 			return nil, fmt.Errorf("reading bin count: %v", err)
 		}
 		var candidates []*bgzf.Chunk
@@ -136,14 +136,14 @@ func Read(bai io.Reader, region genomics.Region) ([]*bgzf.Chunk, error) {
 				ID     uint32
 				Chunks int32
 			}
-			if err := read(bai, &bin); err != nil {
+			if err := binary.Read(bai, &bin); err != nil {
 				return nil, fmt.Errorf("reading bin header: %v", err)
 			}
 
 			includeChunks := regionContainsBin(region, i, bin.ID, bins)
 			for k := int32(0); k < bin.Chunks; k++ {
 				var chunk bgzf.Chunk
-				if err := read(bai, &chunk); err != nil {
+				if err := binary.Read(bai, &chunk); err != nil {
 					return nil, fmt.Errorf("reading chunk: %v", err)
 				}
 				if bin.ID == metadataID {
@@ -159,14 +159,14 @@ func Read(bai io.Reader, region genomics.Region) ([]*bgzf.Chunk, error) {
 		}
 
 		var intervals int32
-		if err := read(bai, &intervals); err != nil {
+		if err := binary.Read(bai, &intervals); err != nil {
 			return nil, fmt.Errorf("reading interval count: %v", err)
 		}
 		if intervals < 0 {
 			return nil, fmt.Errorf("invalid interval count (%d intervals)", intervals)
 		}
 		offsets := make([]uint64, intervals)
-		if err := read(bai, &offsets); err != nil {
+		if err := binary.Read(bai, &offsets); err != nil {
 			return nil, fmt.Errorf("reading offsets: %v", err)
 		}
 
@@ -183,21 +183,6 @@ func Read(bai io.Reader, region genomics.Region) ([]*bgzf.Chunk, error) {
 		}
 	}
 	return chunks, nil
-}
-
-func read(r io.Reader, v interface{}) error {
-	return binary.Read(r, binary.LittleEndian, v)
-}
-
-func checkMagic(r io.Reader, want uint32) error {
-	var got uint32
-	if err := read(r, &got); err != nil {
-		return fmt.Errorf("reading magic: %v", err)
-	}
-	if got != want {
-		return fmt.Errorf("wrong magic %08x (wanted %08x)", got, want)
-	}
-	return nil
 }
 
 // This function is derived from the C examples in the BAM index specification.
