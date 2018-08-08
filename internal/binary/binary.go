@@ -26,10 +26,10 @@ import (
 func ExpectBytes(r io.Reader, want []byte) error {
 	got := make([]byte, len(want))
 	if _, err := io.ReadFull(r, got); err != nil {
-		return fmt.Errorf("reading magic: %v", err)
+		return fmt.Errorf("reading bytes: %v", err)
 	}
 	if !bytes.Equal(got, want) {
-		return fmt.Errorf("wrong magic %v (wanted %v)", got, want)
+		return fmt.Errorf("comparing bytes: got %q, want %q", got, want)
 	}
 	return nil
 }
