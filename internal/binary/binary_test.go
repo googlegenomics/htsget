@@ -38,7 +38,6 @@ func TestExpectBytes(t *testing.T) {
 				t.Fatalf("ExpectBytes returned unexpected error: %v", err)
 			} else if err == nil && !tc.match {
 				t.Fatalf("ExpectBytes accepted mismatched input %v", tc.match)
-
 			}
 		})
 	}
