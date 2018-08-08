@@ -38,7 +38,7 @@ func GetReferenceID(bcf io.Reader, referenceName string) (int, error) {
 	}
 	defer gzr.Close()
 
-	if err := binary.CheckMagic(gzr, []byte(bcfMagic)); err != nil {
+	if err := binary.ExpectBytes(gzr, []byte(bcfMagic)); err != nil {
 		return 0, fmt.Errorf("checking magic of BCF file: %v", err)
 	}
 
