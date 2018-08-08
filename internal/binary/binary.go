@@ -12,9 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package common
+// Package binary provides support for binary operations on files.
+package binary
 
 import (
+	"bytes"
 	"encoding/binary"
 	"fmt"
 	"io"
@@ -23,13 +25,11 @@ import (
 // ChecksMagic checks the magic bytes from the provided reader.
 func CheckMagic(r io.Reader, want []byte) error {
 	got := make([]byte, len(want))
-	if err := Read(r, &got); err != nil {
+	if _, err := io.ReadFull(r, got); err != nil {
 		return fmt.Errorf("reading magic: %v", err)
 	}
-	for i, n := 0, len(want); i < n; i++ {
-		if got[i] != want[i] {
-			return fmt.Errorf("wrong magic %v (wanted %v)", got, want)
-		}
+	if !bytes.Equal(got, want) {
+		return fmt.Errorf("wrong magic %v (wanted %v)", got, want)
 	}
 	return nil
 }

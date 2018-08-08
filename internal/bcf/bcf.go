@@ -22,7 +22,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/googlegenomics/htsget/internal/common"
+	"github.com/googlegenomics/htsget/internal/binary"
 )
 
 const (
@@ -38,12 +38,12 @@ func GetReferenceID(bcf io.Reader, referenceName string) (int, error) {
 	}
 	defer gzr.Close()
 
-	if err := common.CheckMagic(gzr, []byte(bcfMagic)); err != nil {
+	if err := binary.CheckMagic(gzr, []byte(bcfMagic)); err != nil {
 		return 0, fmt.Errorf("checking magic of BCF file: %v", err)
 	}
 
 	var length uint32
-	if err := common.Read(gzr, &length); err != nil {
+	if err := binary.Read(gzr, &length); err != nil {
 		return 0, fmt.Errorf("reading header length: %v", err)
 	}
 
