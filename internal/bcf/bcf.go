@@ -12,11 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Package bcf contains support for parsing BCF files.
 package bcf
 
 import (
 	"bufio"
 	"compress/gzip"
+	"errors"
 	"fmt"
 	"io"
 	"strconv"
@@ -39,7 +41,7 @@ func GetReferenceID(bcf io.Reader, referenceName string) (int, error) {
 	defer gzr.Close()
 
 	if err := binary.ExpectBytes(gzr, []byte(bcfMagic)); err != nil {
-		return 0, fmt.Errorf("checking magic of BCF file: %v", err)
+		return 0, fmt.Errorf("checking magic: %v", err)
 	}
 
 	var length uint32
@@ -50,11 +52,9 @@ func GetReferenceID(bcf io.Reader, referenceName string) (int, error) {
 	headerReader := io.LimitReader(gzr, int64(length))
 	scanner := bufio.NewScanner(headerReader)
 	var id int
-	var contigsFound bool
 	for scanner.Scan() {
 		if line := scanner.Text(); strings.HasPrefix(line, "##contig") {
-			contigsFound = true
-			if contigDefinesReference(line, referenceName) {
+			if contigField(line, "ID") == referenceName {
 				idx, err := getIdx(line)
 				if err != nil {
 					return 0, fmt.Errorf("getting idx: %v", err)
@@ -66,45 +66,48 @@ func GetReferenceID(bcf io.Reader, referenceName string) (int, error) {
 			}
 			id++
 		} else {
-			if contigsFound {
-				return 0, fmt.Errorf("reference name not found")
+			if id > 0 {
+				break
 			}
 		}
 	}
 	if err := scanner.Err(); err != nil {
 		return 0, fmt.Errorf("scanning header: %v", err)
 	}
-	return 0, fmt.Errorf("region id not found")
+	return 0, errors.New("reference name not found")
 }
 
-func contigDefinesReference(contig, refName string) bool {
-	index := strings.Index(contig, fmt.Sprintf("ID=%s", refName))
-	if index == -1 {
-		return false
+func contigField(input, name string) string {
+	field := fmt.Sprintf("%s=", name)
+	for {
+		index := strings.Index(input, field)
+		if index == -1 {
+			return ""
+		}
+		if index > 0 && !isDelimiter(input[index-1]) {
+			input = input[index+len(field):]
+			continue
+		}
+		index += len(field)
+		var buff []byte
+		for n := len(input); index < n; index++ {
+			chr := input[index]
+			if isDelimiter(chr) {
+				return string(buff)
+			}
+			buff = append(buff, chr)
+		}
 	}
-	if nextChr := contig[index+len("ID=")+len(refName)]; nextChr != ',' && nextChr != '>' {
-		return false
-	}
-	return true
+}
+
+func isDelimiter(chr byte) bool {
+	return chr == ',' || chr == '>' || chr == '<'
 }
 
 func getIdx(contig string) (int, error) {
-	index := strings.Index(contig, "IDX=")
-	if index == -1 {
+	idx := contigField(contig, "IDX")
+	if idx == "" {
 		return -1, nil
 	}
-	index += len("IDX=")
-	var buff []byte
-	for n := len(contig); index < n; index++ {
-		chr := contig[index]
-		if chr == ',' || chr == '>' {
-			break
-		}
-		buff = append(buff, chr)
-	}
-	idx, err := strconv.Atoi(string(buff))
-	if err != nil {
-		return -1, fmt.Errorf("parsing IDX value: %v", err)
-	}
-	return idx, nil
+	return strconv.Atoi(string(idx))
 }

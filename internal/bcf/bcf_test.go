@@ -55,22 +55,24 @@ func TestGetReferenceId(t *testing.T) {
 	}
 }
 
-func TestContigDefinesReference(t *testing.T) {
+func TestContigField(t *testing.T) {
 	testCases := []struct {
-		line string
-		ref  string
-		want bool
+		contig string
+		field  string
+		want   string
 	}{
-		{"##contig=<ID=chr1,length=248956422,IDX=0>", "chr1", true},
-		{"##contig=<ID=chr10,length=248956422,IDX=0>", "chr1", false},
-		{"##contig=<ID=Y,length=248956422,IDX=0>", "chr1", false},
-		{"##contig=<length=248956422,IDX=0>", "Y", false},
+		{"##contig=<ID=chr1,length=248956422,IDX=0>", "ID", "chr1"},
+		{"##contig=<ID=chr10,length=248956422,IDX=0>", "length", "248956422"},
+		{"##contig=<ID=Y,length=248956422,IDX=0>", "IDX", "0"},
+		{"##contig=<length=248956422,IDX=0>", "OTHER", ""},
+		{"##contig=<ID=IDX,length=248956422,IDX=7>", "IDX", "7"},
+		{"##contig=<BADIDX=NO,length=248956422,IDX=7>", "IDX", "7"},
 	}
 
 	for i, tc := range testCases {
 		t.Run(string(i), func(t *testing.T) {
-			if got := contigDefinesReference(tc.line, tc.ref); got != tc.want {
-				t.Fatalf("Wrong contigDefinesReference response, want %v, got %v ", tc.want, got)
+			if got := contigField(tc.contig, tc.field); got != tc.want {
+				t.Fatalf("Wrong contigField response, want %v, got %v ", tc.want, got)
 			}
 		})
 	}
