@@ -80,28 +80,25 @@ func GetReferenceID(bcf io.Reader, referenceName string) (int, error) {
 func contigField(input, name string) string {
 	field := fmt.Sprintf("%s=", name)
 	for {
-		index := strings.Index(input, field)
-		if index == -1 {
+		start := strings.Index(input, field)
+		if start == -1 {
 			return ""
 		}
-		if index > 0 && !isDelimiter(input[index-1]) {
-			input = input[index+len(field):]
+		if start > 0 && !isDelimiter(input[start-1]) {
+			input = input[start+len(field):]
 			continue
 		}
-		index += len(field)
-		var buff []byte
-		for n := len(input); index < n; index++ {
-			chr := input[index]
-			if isDelimiter(chr) {
-				return string(buff)
-			}
-			buff = append(buff, chr)
+		input = input[start+len(field):]
+		if end := strings.IndexAny(input, ",>"); end > 0 {
+			return input[:end]
+		} else {
+			return input
 		}
 	}
 }
 
 func isDelimiter(chr byte) bool {
-	return chr == ',' || chr == '>' || chr == '<'
+	return chr == ',' || chr == '<'
 }
 
 func getIdx(contig string) (int, error) {
