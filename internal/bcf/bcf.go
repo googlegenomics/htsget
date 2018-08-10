@@ -65,10 +65,8 @@ func GetReferenceID(bcf io.Reader, referenceName string) (int, error) {
 				return id, nil
 			}
 			id++
-		} else {
-			if id > 0 {
-				break
-			}
+		} else if id > 0 {
+			break
 		}
 	}
 	if err := scanner.Err(); err != nil {
@@ -78,7 +76,7 @@ func GetReferenceID(bcf io.Reader, referenceName string) (int, error) {
 }
 
 func contigField(input, name string) string {
-	field := fmt.Sprintf("%s=", name)
+	field := name + "="
 	for {
 		start := strings.Index(input, field)
 		if start == -1 {
@@ -102,9 +100,8 @@ func isDelimiter(chr byte) bool {
 }
 
 func getIdx(contig string) (int, error) {
-	idx := contigField(contig, "IDX")
-	if idx == "" {
-		return -1, nil
+	if idx := contigField(contig, "IDX"); idx != "" {
+		return strconv.Atoi(idx)
 	}
-	return strconv.Atoi(string(idx))
+	return -1, nil
 }
