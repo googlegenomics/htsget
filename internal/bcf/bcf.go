@@ -82,11 +82,16 @@ func contigField(input, name string) string {
 		if start == -1 {
 			return ""
 		}
-		if start > 0 && !isDelimiter(input[start-1]) {
-			input = input[start+len(field):]
+		wholeWord := func() bool {
+			if start == 0 || isDelimiter(input[start-1]) {
+				return true
+			}
+			return false
+		}()
+		input = input[start+len(field):]
+		if !wholeWord {
 			continue
 		}
-		input = input[start+len(field):]
 		if end := strings.IndexAny(input, ",>"); end > 0 {
 			return input[:end]
 		} else {
