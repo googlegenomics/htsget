@@ -49,8 +49,7 @@ func GetReferenceID(bcf io.Reader, referenceName string) (int, error) {
 		return 0, fmt.Errorf("reading header length: %v", err)
 	}
 
-	headerReader := io.LimitReader(gzr, int64(length))
-	scanner := bufio.NewScanner(headerReader)
+	scanner := bufio.NewScanner(io.LimitReader(gzr, int64(length)))
 	var id int
 	for scanner.Scan() {
 		if line := scanner.Text(); strings.HasPrefix(line, "##contig") {
@@ -82,21 +81,15 @@ func contigField(input, name string) string {
 		if start == -1 {
 			return ""
 		}
-		wholeWord := func() bool {
-			if start == 0 || isDelimiter(input[start-1]) {
-				return true
-			}
-			return false
-		}()
+		skip := start > 0 && !isDelimiter(input[start-1])
 		input = input[start+len(field):]
-		if !wholeWord {
+		if skip {
 			continue
 		}
 		if end := strings.IndexAny(input, ",>"); end > 0 {
 			return input[:end]
-		} else {
-			return input
 		}
+		return input
 	}
 }
 
