@@ -28,11 +28,11 @@ func TestGetReferenceId(t *testing.T) {
 		id     int
 		errMsg string
 	}{
-		// The test file bcf_with_idx.bcf.gz has the chr2 line before the chr1 line
-		// but the region id is given by the IDX field.
-		{"bcf_with_idx.bcf.gz", "chr1", 0, ""},
-		{"bcf_with_idx.bcf.gz", "chr2", 1, ""},
-		{"bcf_with_idx.bcf.gz", "chr10", 9, ""},
+		// The test file bcf_with_idx.bcf.gz has the contig lines in reverse order
+		// and the region id is given by the IDX field.
+		{"bcf_with_idx.bcf.gz", "19", 0, ""},
+		{"bcf_with_idx.bcf.gz", "Y", 2, ""},
+		{"bcf_with_idx.bcf.gz", "Z", 0, "reference name not found"},
 		{"bcf_without_idx.bcf.gz", "19", 0, ""},
 		{"bcf_without_idx.bcf.gz", "Y", 2, ""},
 		{"bcf_without_idx.bcf.gz", "Z", 0, "reference name not found"},
