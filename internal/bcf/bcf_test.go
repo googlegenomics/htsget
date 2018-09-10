@@ -78,7 +78,7 @@ func TestContigField(t *testing.T) {
 	}
 }
 
-func TestGetIDX(t *testing.T) {
+func TestResolveID(t *testing.T) {
 	testCases := []struct {
 		line string
 		want int
