@@ -54,14 +54,7 @@ func GetReferenceID(bcf io.Reader, referenceName string) (int, error) {
 	for scanner.Scan() {
 		if line := scanner.Text(); strings.HasPrefix(line, "##contig") {
 			if contigField(line, "ID") == referenceName {
-				idx, err := getIdx(line)
-				if err != nil {
-					return 0, fmt.Errorf("getting idx: %v", err)
-				}
-				if idx > -1 {
-					return idx, nil
-				}
-				return id, nil
+				return resolveID(line, id)
 			}
 			id++
 		} else if id > 0 {
@@ -97,9 +90,9 @@ func isDelimiter(chr byte) bool {
 	return chr == ',' || chr == '<'
 }
 
-func getIdx(contig string) (int, error) {
+func resolveID(contig string, id int) (int, error) {
 	if idx := contigField(contig, "IDX"); idx != "" {
 		return strconv.Atoi(idx)
 	}
-	return -1, nil
+	return id, nil
 }
