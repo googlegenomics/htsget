@@ -92,7 +92,7 @@ func TestGetIDX(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.line, func(t *testing.T) {
-			if got, _ := getIdx(tc.line); got != tc.want {
+			if got, _ := resolveID(tc.line, -1); got != tc.want {
 				t.Fatalf("Wrong getIdx response, want %d, got %d ", tc.want, got)
 			}
 		})
