@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	"cloud.google.com/go/storage"
-	"github.com/googlegenomics/htsget/htsget-server/api"
+	"github.com/googlegenomics/htsget/api"
 	"google.golang.org/appengine"
 )
 
