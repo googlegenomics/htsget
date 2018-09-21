@@ -23,6 +23,7 @@ import (
 
 	"github.com/googlegenomics/htsget/internal/bgzf"
 	"github.com/googlegenomics/htsget/internal/binary"
+	"github.com/googlegenomics/htsget/internal/csi"
 	"github.com/googlegenomics/htsget/internal/genomics"
 )
 
@@ -30,38 +31,14 @@ const (
 	baiMagic = "BAI\x01"
 	bamMagic = "BAM\x01"
 
-	// This ID is used as a virtual bin ID for (unused) chunk metadata.
-	metadataID = 37450
-
 	// This is just to prevent arbitrarily long allocations due to malformed
 	// data.  No reference name should be longer than this in practice.
 	maximumNameLength = 1024
-
-	// The maximum read length as constrained by the size of the level zero bin
-	// in the SAM specification, section 5.1.1.
-	maximumReadLength = 1 << 29
 
 	// The size of each tiling window from the linear index, as specified in the
 	// SAM specification section 5.1.3.
 	linearWindowSize = 1 << 14
 )
-
-func regionContainsBin(region genomics.Region, referenceID int32, binID uint32, bins []uint16) bool {
-	if region.ReferenceID >= 0 && referenceID != region.ReferenceID {
-		return false
-	}
-
-	if region.Start == 0 && region.End == 0 {
-		return true
-	}
-
-	for _, id := range bins {
-		if uint32(id) == binID {
-			return true
-		}
-	}
-	return false
-}
 
 // GetReferenceID attempts to determine the ID for the named genomic reference
 // by reading BAM header data from bam.
@@ -121,7 +98,7 @@ func Read(bai io.Reader, region genomics.Region) ([]*bgzf.Chunk, error) {
 		return nil, fmt.Errorf("reading reference count: %v", err)
 	}
 
-	bins := binsForRange(region.Start, region.End)
+	bins := csi.BinsForRange(region.Start, region.End, 14, 5)
 
 	header := &bgzf.Chunk{End: bgzf.LastAddress}
 	chunks := []*bgzf.Chunk{header}
@@ -140,13 +117,13 @@ func Read(bai io.Reader, region genomics.Region) ([]*bgzf.Chunk, error) {
 				return nil, fmt.Errorf("reading bin header: %v", err)
 			}
 
-			includeChunks := regionContainsBin(region, i, bin.ID, bins)
+			includeChunks := csi.RegionContainsBin(region, i, bin.ID, bins)
 			for k := int32(0); k < bin.Chunks; k++ {
 				var chunk bgzf.Chunk
 				if err := binary.Read(bai, &chunk); err != nil {
 					return nil, fmt.Errorf("reading chunk: %v", err)
 				}
-				if bin.ID == metadataID {
+				if bin.ID == csi.MetadataBeanID {
 					continue
 				}
 				if includeChunks {
@@ -183,37 +160,4 @@ func Read(bai io.Reader, region genomics.Region) ([]*bgzf.Chunk, error) {
 		}
 	}
 	return chunks, nil
-}
-
-// This function is derived from the C examples in the BAM index specification.
-func binsForRange(start, end uint32) []uint16 {
-	if end == 0 || end > maximumReadLength {
-		end = maximumReadLength
-	}
-	if end <= start {
-		return nil
-	}
-	if start > maximumReadLength {
-		return nil
-	}
-
-	end--
-
-	bins := []uint16{0}
-	for k := uint16(1 + (start >> 26)); k <= uint16(1+(end>>26)); k++ {
-		bins = append(bins, k)
-	}
-	for k := uint16(9 + (start >> 23)); k <= uint16(9+(end>>23)); k++ {
-		bins = append(bins, k)
-	}
-	for k := uint16(73 + (start >> 20)); k <= uint16(73+(end>>20)); k++ {
-		bins = append(bins, k)
-	}
-	for k := uint16(585 + (start >> 17)); k <= uint16(585+(end>>17)); k++ {
-		bins = append(bins, k)
-	}
-	for k := uint16(4681 + (start >> 14)); k <= uint16(4681+(end>>14)); k++ {
-		bins = append(bins, k)
-	}
-	return bins
 }
