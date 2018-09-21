@@ -17,25 +17,24 @@ package bcf
 import (
 	"fmt"
 	"os"
-	"strings"
 	"testing"
 )
 
 func TestGetReferenceId(t *testing.T) {
 	testCases := []struct {
-		file   string
-		name   string
-		id     int
-		errMsg string
+		file string
+		name string
+		id   int
+		err  bool
 	}{
 		// The test file bcf_with_idx.bcf.gz has the contig lines in reverse order
 		// and the region id is given by the IDX field.
-		{"bcf_with_idx.bcf.gz", "19", 0, ""},
-		{"bcf_with_idx.bcf.gz", "Y", 2, ""},
-		{"bcf_with_idx.bcf.gz", "Z", 0, "reference name not found"},
-		{"bcf_without_idx.bcf.gz", "19", 0, ""},
-		{"bcf_without_idx.bcf.gz", "Y", 2, ""},
-		{"bcf_without_idx.bcf.gz", "Z", 0, "reference name not found"},
+		{"bcf_with_idx.bcf.gz", "19", 0, false},
+		{"bcf_with_idx.bcf.gz", "Y", 2, false},
+		{"bcf_with_idx.bcf.gz", "Z", 0, true},
+		{"bcf_without_idx.bcf.gz", "19", 0, false},
+		{"bcf_without_idx.bcf.gz", "Y", 2, false},
+		{"bcf_without_idx.bcf.gz", "Z", 0, true},
 	}
 
 	for _, tc := range testCases {
@@ -46,7 +45,7 @@ func TestGetReferenceId(t *testing.T) {
 			}
 			defer r.Close()
 
-			if id, err := GetReferenceID(r, tc.name); err != nil && !strings.Contains(err.Error(), tc.errMsg) {
+			if id, err := GetReferenceID(r, tc.name); err != nil && (err.Error() != "") == tc.err {
 				t.Fatalf("GetReferenceID() returned unexpected error: %v", err)
 			} else if id != tc.id {
 				t.Fatalf("Wrong reference ID: got %d, want %d", id, tc.id)
