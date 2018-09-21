@@ -16,10 +16,19 @@
 package csi
 
 import (
+	"compress/gzip"
+	"fmt"
+	"io"
+	"io/ioutil"
+
+	"github.com/googlegenomics/htsget/internal/bgzf"
+	"github.com/googlegenomics/htsget/internal/binary"
 	"github.com/googlegenomics/htsget/internal/genomics"
 )
 
 const (
+	csiMagic = "CSI\x01"
+
 	// The maximum read length as constrained by the size of the level zero bin
 	// in the SAM specification, section 5.1.1.
 	maximumReadLength = 1 << 29
@@ -79,4 +88,77 @@ func BinsForRange(start, end uint32, minShift, depth int32) []uint16 {
 
 func maximumBinWidth(minShift, depth int32) uint32 {
 	return uint32(1 << uint32(minShift+depth*3))
+}
+
+// Read reads index data from csi and returns a set of BGZF chunks covering
+// the header and all mapped reads that fall inside the specified region.  The
+// first chunk is always the BCF header.
+func Read(csiFile io.Reader, region genomics.Region) ([]*bgzf.Chunk, error) {
+	gzr, err := gzip.NewReader(csiFile)
+	if err != nil {
+		return nil, fmt.Errorf("initializing gzip reader: %v", err)
+	}
+	defer gzr.Close()
+	if err := binary.ExpectBytes(gzr, []byte(csiMagic)); err != nil {
+		return nil, fmt.Errorf("checking magic: %v", err)
+	}
+
+	var minShift int32
+	if err := binary.Read(gzr, &minShift); err != nil {
+		return nil, fmt.Errorf("reading # bits for the minimal interval (min_shift): %v", err)
+	}
+	var depth int32
+	if err := binary.Read(gzr, &depth); err != nil {
+		return nil, fmt.Errorf("reading depth of binary index: %v", err)
+	}
+	bins := BinsForRange(region.Start, region.End, minShift, depth)
+
+	var laux int32
+	if err := binary.Read(gzr, &laux); err != nil {
+		return nil, fmt.Errorf("reading length of auxiliary data: %v", err)
+	}
+	if _, err := io.CopyN(ioutil.Discard, gzr, int64(laux)); err != nil {
+		return nil, fmt.Errorf("reading past auxiliary data: %v", err)
+	}
+
+	header := &bgzf.Chunk{End: bgzf.LastAddress}
+	chunks := []*bgzf.Chunk{header}
+	var refCount int32
+	if err := binary.Read(gzr, &refCount); err != nil {
+		return nil, fmt.Errorf("reading the number of reference sequences: %v", err)
+	}
+	for reference := int32(0); reference < refCount; reference++ {
+		var binCount int32
+		if err := binary.Read(gzr, &binCount); err != nil {
+			return nil, fmt.Errorf("reading bin count: %v", err)
+		}
+		for j := int32(0); j < binCount; j++ {
+			var bin struct {
+				ID     uint32
+				Offset uint64
+				Chunks int32
+			}
+			if err := binary.Read(gzr, &bin); err != nil {
+				return nil, fmt.Errorf("reading bin header: %v", err)
+			}
+
+			includeChunks := RegionContainsBin(region, reference, bin.ID, bins)
+			for k := int32(0); k < bin.Chunks; k++ {
+				var chunk bgzf.Chunk
+				if err := binary.Read(gzr, &chunk); err != nil {
+					return nil, fmt.Errorf("reading chunk: %v", err)
+				}
+				if bin.ID == MetadataBeanID {
+					continue
+				}
+				if includeChunks && (chunk.End >= bgzf.Address(bin.Offset)) {
+					chunks = append(chunks, &chunk)
+				}
+				if header.End > chunk.Start {
+					header.End = chunk.Start
+				}
+			}
+		}
+	}
+	return chunks, nil
 }
