@@ -31,9 +31,6 @@ const (
 	baiMagic = "BAI\x01"
 	bamMagic = "BAM\x01"
 
-	// This ID is used as a virtual bin ID for (unused) chunk metadata.
-	metadataID = 37450
-
 	// This is just to prevent arbitrarily long allocations due to malformed
 	// data.  No reference name should be longer than this in practice.
 	maximumNameLength = 1024
@@ -127,7 +124,7 @@ func Read(bai io.Reader, region genomics.Region) ([]*bgzf.Chunk, error) {
 				if err := binary.Read(bai, &chunk); err != nil {
 					return nil, fmt.Errorf("reading chunk: %v", err)
 				}
-				if bin.ID == metadataID {
+				if bin.ID == csi.MetadataBeanID {
 					continue
 				}
 				if includeChunks {

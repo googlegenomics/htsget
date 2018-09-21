@@ -19,6 +19,15 @@ import (
 	"github.com/googlegenomics/htsget/internal/genomics"
 )
 
+const (
+	// The maximum read length as constrained by the size of the level zero bin
+	// in the SAM specification, section 5.1.1.
+	maximumReadLength = 1 << 29
+
+	// This ID is used as a virtual bin ID for (unused) chunk metadata.
+	MetadataBeanID = 37450
+)
+
 // RegionContainsBin indicates if the given region contains the bin described by
 // referenceID and binID.
 func RegionContainsBin(region genomics.Region, referenceID int32, binID uint32, bins []uint16) bool {
