@@ -45,7 +45,7 @@ func TestGetReferenceId(t *testing.T) {
 			}
 			defer r.Close()
 
-			if id, err := GetReferenceID(r, tc.name); err != nil && (err.Error() != "") == tc.err {
+			if id, err := GetReferenceID(r, tc.name); err != nil && (err == nil) == tc.err {
 				t.Fatalf("GetReferenceID() returned unexpected error: %v", err)
 			} else if id != tc.id {
 				t.Fatalf("Wrong reference ID: got %d, want %d", id, tc.id)
