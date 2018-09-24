@@ -16,9 +16,7 @@ package bam
 
 import (
 	"bytes"
-	"math"
 	"os"
-	"reflect"
 	"testing"
 
 	"github.com/googlegenomics/htsget/internal/bgzf"
@@ -188,35 +186,6 @@ func TestRead_Region(t *testing.T) {
 			}
 			if got, want := len(chunks), tc.chunks; got != want {
 				t.Fatalf("Wrong number of chunks: got %d, want %d", got, want)
-			}
-		})
-	}
-}
-
-func TestBinsForRange(t *testing.T) {
-	allBins := make([]uint16, metadataID-1)
-	for i := range allBins {
-		allBins[i] = uint16(i)
-	}
-
-	testCases := []struct {
-		name       string
-		start, end uint32
-		bins       []uint16
-	}{
-		{"end clamping", 0, math.MaxUint32, allBins},
-		{"end past maximum", 0, maximumReadLength + 1, allBins},
-		{"start past maximum", maximumReadLength + 1, maximumReadLength + 2, nil},
-		{"narrow region", 0, 1, []uint16{0, 1, 9, 73, 585, 4681}},
-		{"invalid range (start > end)", math.MaxUint32, 0, nil},
-		{"swapped endpoints", 2, 1, nil},
-		{"zero-width region", 1, 1, nil},
-		{"zero end", 1, 0, allBins},
-	}
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			if got, want := binsForRange(tc.start, tc.end), tc.bins; !reflect.DeepEqual(got, want) {
-				t.Fatalf("binsForRange(%v, %v) = %+v, want %+v", tc.start, tc.end, got, want)
 			}
 		})
 	}
