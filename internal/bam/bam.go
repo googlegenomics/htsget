@@ -31,6 +31,9 @@ const (
 	baiMagic = "BAI\x01"
 	bamMagic = "BAM\x01"
 
+	// This ID is used as a virtual bin ID for (unused) chunk metadata.
+	metadataID = 37450
+
 	// This is just to prevent arbitrarily long allocations due to malformed
 	// data.  No reference name should be longer than this in practice.
 	maximumNameLength = 1024
@@ -98,6 +101,7 @@ func Read(bai io.Reader, region genomics.Region) ([]*bgzf.Chunk, error) {
 		return nil, fmt.Errorf("reading reference count: %v", err)
 	}
 
+	// BAM uses a 6 level (depth = 5) CSI binning scheme with a minimum width of 14 bits.
 	bins := csi.BinsForRange(region.Start, region.End, 14, 5)
 
 	header := &bgzf.Chunk{End: bgzf.LastAddress}
@@ -123,7 +127,7 @@ func Read(bai io.Reader, region genomics.Region) ([]*bgzf.Chunk, error) {
 				if err := binary.Read(bai, &chunk); err != nil {
 					return nil, fmt.Errorf("reading chunk: %v", err)
 				}
-				if bin.ID == csi.MetadataBeanID {
+				if bin.ID == metadataID {
 					continue
 				}
 				if includeChunks {

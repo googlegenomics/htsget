@@ -21,30 +21,33 @@ import (
 	"reflect"
 )
 
-func TestBinsForRange(t *testing.T) {
-	allBins := make([]uint16, MetadataBeanID-1)
+func TestBinsForRange_BAM(t *testing.T) {
+	metadataID := 37450
+	allBins := make([]uint16, metadataID-1)
 	for i := range allBins {
 		allBins[i] = uint16(i)
 	}
 
 	testCases := []struct {
-		name       string
-		start, end uint32
-		bins       []uint16
+		name            string
+		start, end      uint32
+		minShift, depth int32
+		bins            []uint16
 	}{
-		{"end clamping", 0, math.MaxUint32, allBins},
-		{"end past maximum", 0, maximumReadLength + 1, allBins},
-		{"start past maximum", maximumReadLength + 1, maximumReadLength + 2, nil},
-		{"narrow region", 0, 1, []uint16{0, 1, 9, 73, 585, 4681}},
-		{"invalid range (start > end)", math.MaxUint32, 0, nil},
-		{"swapped endpoints", 2, 1, nil},
-		{"zero-width region", 1, 1, nil},
-		{"zero end", 1, 0, allBins},
+		{"end clamping", 0, math.MaxUint32, 14, 5, allBins},
+		{"end past maximum", 0, maximumReadLength(14, 5) + 1, 14, 5, allBins},
+		{"start past maximum", maximumReadLength(14, 5) + 1, maximumReadLength(14, 5) + 2, 14, 5, nil},
+		{"narrow region", 0, 1, 14, 5, []uint16{0, 1, 9, 73, 585, 4681}},
+		{"narrow depth", 0, 1, 14, 4, []uint16{0, 1, 9, 73, 585}},
+		{"invalid range (start > end)", math.MaxUint32, 0, 14, 5, nil},
+		{"swapped endpoints", 2, 1, 14, 5, nil},
+		{"zero-width region", 1, 1, 14, 5, nil},
+		{"zero end", 1, 0, 14, 5, allBins},
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			if got, want := BinsForRange(tc.start, tc.end, 14, 5), tc.bins; !reflect.DeepEqual(got, want) {
-				t.Fatalf("binsForRange(%v, %v) = %+v, want %+v", tc.start, tc.end, got, want)
+			if got, want := BinsForRange(tc.start, tc.end, tc.minShift, tc.depth), tc.bins; !reflect.DeepEqual(got, want) {
+				t.Fatalf("BinsForRange(%v, %v) = %+v, want %+v", tc.start, tc.end, got, want)
 			}
 		})
 	}

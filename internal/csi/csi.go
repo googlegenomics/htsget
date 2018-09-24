@@ -19,15 +19,6 @@ import (
 	"github.com/googlegenomics/htsget/internal/genomics"
 )
 
-const (
-	// The maximum read length as constrained by the size of the level zero bin
-	// in the SAM specification, section 5.1.1.
-	maximumReadLength = 1 << 29
-
-	// This ID is used as a virtual bin ID for (unused) chunk metadata.
-	MetadataBeanID = 37450
-)
-
 // RegionContainsBin indicates if the given region contains the bin described by
 // referenceID and binID.
 func RegionContainsBin(region genomics.Region, referenceID int32, binID uint32, bins []uint16) bool {
@@ -47,16 +38,19 @@ func RegionContainsBin(region genomics.Region, referenceID int32, binID uint32, 
 	return false
 }
 
-// BinsForRange calculates the list of bins that may overlap with region [beg,end) (zero-based).
+// BinsForRange returns the list of bins that may overlap with the zero-based region
+// defined by [start, end). The minShift and depth parameters control the minimum interval width
+// and number of binning levels, respectively.
 // This function is derived from the C examples in the CSI index specification.
 func BinsForRange(start, end uint32, minShift, depth int32) []uint16 {
-	if end == 0 || end > maximumReadLength {
-		end = maximumReadLength
+	maxReadLength := maximumReadLength(minShift, depth)
+	if end == 0 || end > maxReadLength {
+		end = maxReadLength
 	}
 	if end <= start {
 		return nil
 	}
-	if start > maximumReadLength {
+	if start > maxReadLength {
 		return nil
 	}
 
@@ -73,4 +67,10 @@ func BinsForRange(start, end uint32, minShift, depth int32) []uint16 {
 		t += 1 << (l * 3)
 	}
 	return bins
+}
+
+// The maximum read length as constrained by the size of the level zero bin
+// in the SAM specification, section 5.1.1.
+func maximumReadLength(minShift, depth int32) uint32 {
+	return uint32(1 << uint32(minShift+depth*3))
 }
