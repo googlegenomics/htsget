@@ -28,13 +28,6 @@ import (
 
 const (
 	csiMagic = "CSI\x01"
-
-	// The maximum read length as constrained by the size of the level zero bin
-	// in the SAM specification, section 5.1.1.
-	maximumReadLength = 1 << 29
-
-	// This ID is used as a virtual bin ID for (unused) chunk metadata.
-	MetadataBeanID = 37450
 )
 
 // RegionContainsBin indicates if the given region contains the bin described by
@@ -147,9 +140,6 @@ func Read(csiFile io.Reader, region genomics.Region) ([]*bgzf.Chunk, error) {
 				var chunk bgzf.Chunk
 				if err := binary.Read(gzr, &chunk); err != nil {
 					return nil, fmt.Errorf("reading chunk: %v", err)
-				}
-				if bin.ID == MetadataBeanID {
-					continue
 				}
 				if includeChunks && (chunk.End >= bgzf.Address(bin.Offset)) {
 					chunks = append(chunks, &chunk)
