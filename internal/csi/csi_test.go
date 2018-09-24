@@ -21,7 +21,7 @@ import (
 	"reflect"
 )
 
-func TestBinsForRange_BAM(t *testing.T) {
+func TestBinsForRange(t *testing.T) {
 	metadataID := 37450
 	allBins := make([]uint16, metadataID-1)
 	for i := range allBins {
