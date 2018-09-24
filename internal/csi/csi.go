@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package csi contains support for processing the information in a CSI file.
+// Package csi contains support for processing the information in a CSI file (http://samtools.github.io/hts-specs/CSIv1.pdf).
 package csi
 
 import (
