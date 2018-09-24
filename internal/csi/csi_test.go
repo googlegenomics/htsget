@@ -35,8 +35,8 @@ func TestBinsForRange(t *testing.T) {
 		bins            []uint16
 	}{
 		{"end clamping", 0, math.MaxUint32, 14, 5, allBins},
-		{"end past maximum", 0, maximumReadLength(14, 5) + 1, 14, 5, allBins},
-		{"start past maximum", maximumReadLength(14, 5) + 1, maximumReadLength(14, 5) + 2, 14, 5, nil},
+		{"end past maximum", 0, maximumBinWidth(14, 5) + 1, 14, 5, allBins},
+		{"start past maximum", maximumBinWidth(14, 5) + 1, maximumBinWidth(14, 5) + 2, 14, 5, nil},
 		{"narrow region", 0, 1, 14, 5, []uint16{0, 1, 9, 73, 585, 4681}},
 		{"narrow depth", 0, 1, 14, 4, []uint16{0, 1, 9, 73, 585}},
 		{"invalid range (start > end)", math.MaxUint32, 0, 14, 5, nil},

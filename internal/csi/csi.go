@@ -41,21 +41,20 @@ func RegionContainsBin(region genomics.Region, referenceID int32, binID uint32, 
 // BinsForRange returns the list of bins that may overlap with the zero-based region
 // defined by [start, end). The minShift and depth parameters control the minimum interval width
 // and number of binning levels, respectively.
-// This function is derived from the C examples in the CSI index specification.
 func BinsForRange(start, end uint32, minShift, depth int32) []uint16 {
-	maxReadLength := maximumReadLength(minShift, depth)
-	if end == 0 || end > maxReadLength {
-		end = maxReadLength
+	maxWidth := maximumBinWidth(minShift, depth)
+	if end == 0 || end > maxWidth {
+		end = maxWidth
 	}
 	if end <= start {
 		return nil
 	}
-	if start > maxReadLength {
+	if start > maxWidth {
 		return nil
 	}
 
+	// This is derived from the C examples in the CSI index specification.
 	end--
-
 	var bins []uint16
 	for l, t, s := uint(0), uint(0), uint(minShift+depth*3); l <= uint(depth); l++ {
 		b := t + (uint(start) >> s)
@@ -69,8 +68,6 @@ func BinsForRange(start, end uint32, minShift, depth int32) []uint16 {
 	return bins
 }
 
-// The maximum read length as constrained by the size of the level zero bin
-// in the SAM specification, section 5.1.1.
-func maximumReadLength(minShift, depth int32) uint32 {
+func maximumBinWidth(minShift, depth int32) uint32 {
 	return uint32(1 << uint32(minShift+depth*3))
 }
