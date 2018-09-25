@@ -83,46 +83,41 @@ func maximumBinWidth(minShift, depth int32) uint32 {
 	return uint32(1 << uint32(minShift+depth*3))
 }
 
-// Read reads index data from csi and returns a set of BGZF chunks covering
+// Read reads index data from CSI and returns a set of BGZF chunks covering
 // the header and all mapped reads that fall inside the specified region.  The
 // first chunk is always the BCF header.
-func Read(csiFile io.Reader, region genomics.Region) ([]*bgzf.Chunk, error) {
-	gzr, err := gzip.NewReader(csiFile)
+func Read(r io.Reader, region genomics.Region) ([]*bgzf.Chunk, error) {
+	csi, err := gzip.NewReader(r)
 	if err != nil {
 		return nil, fmt.Errorf("initializing gzip reader: %v", err)
 	}
-	defer gzr.Close()
-	if err := binary.ExpectBytes(gzr, []byte(csiMagic)); err != nil {
+	defer csi.Close()
+	if err := binary.ExpectBytes(csi, []byte(csiMagic)); err != nil {
 		return nil, fmt.Errorf("checking magic: %v", err)
 	}
 
-	var minShift int32
-	if err := binary.Read(gzr, &minShift); err != nil {
-		return nil, fmt.Errorf("reading # bits for the minimal interval (min_shift): %v", err)
+	var csiHeader struct {
+		MinimumWidth   int32
+		Depth          int32
+		AuxilaryLength int32
 	}
-	var depth int32
-	if err := binary.Read(gzr, &depth); err != nil {
-		return nil, fmt.Errorf("reading depth of binary index: %v", err)
+	if err := binary.Read(csi, &csiHeader); err != nil {
+		return nil, fmt.Errorf("reading the csi header: %v", err)
 	}
-	bins := BinsForRange(region.Start, region.End, minShift, depth)
-
-	var laux int32
-	if err := binary.Read(gzr, &laux); err != nil {
-		return nil, fmt.Errorf("reading length of auxiliary data: %v", err)
-	}
-	if _, err := io.CopyN(ioutil.Discard, gzr, int64(laux)); err != nil {
+	if _, err := io.CopyN(ioutil.Discard, csi, int64(csiHeader.AuxilaryLength)); err != nil {
 		return nil, fmt.Errorf("reading past auxiliary data: %v", err)
 	}
 
-	header := &bgzf.Chunk{End: bgzf.LastAddress}
-	chunks := []*bgzf.Chunk{header}
+	bcfHeader := &bgzf.Chunk{End: bgzf.LastAddress}
+	chunks := []*bgzf.Chunk{bcfHeader}
 	var refCount int32
-	if err := binary.Read(gzr, &refCount); err != nil {
+	if err := binary.Read(csi, &refCount); err != nil {
 		return nil, fmt.Errorf("reading the number of reference sequences: %v", err)
 	}
+	bins := BinsForRange(region.Start, region.End, csiHeader.MinimumWidth, csiHeader.Depth)
 	for reference := int32(0); reference < refCount; reference++ {
 		var binCount int32
-		if err := binary.Read(gzr, &binCount); err != nil {
+		if err := binary.Read(csi, &binCount); err != nil {
 			return nil, fmt.Errorf("reading bin count: %v", err)
 		}
 		for j := int32(0); j < binCount; j++ {
@@ -131,21 +126,21 @@ func Read(csiFile io.Reader, region genomics.Region) ([]*bgzf.Chunk, error) {
 				Offset uint64
 				Chunks int32
 			}
-			if err := binary.Read(gzr, &bin); err != nil {
+			if err := binary.Read(csi, &bin); err != nil {
 				return nil, fmt.Errorf("reading bin header: %v", err)
 			}
 
 			includeChunks := RegionContainsBin(region, reference, bin.ID, bins)
 			for k := int32(0); k < bin.Chunks; k++ {
 				var chunk bgzf.Chunk
-				if err := binary.Read(gzr, &chunk); err != nil {
+				if err := binary.Read(csi, &chunk); err != nil {
 					return nil, fmt.Errorf("reading chunk: %v", err)
 				}
 				if includeChunks && (chunk.End >= bgzf.Address(bin.Offset)) {
 					chunks = append(chunks, &chunk)
 				}
-				if header.End > chunk.Start {
-					header.End = chunk.Start
+				if bcfHeader.End > chunk.Start {
+					bcfHeader.End = chunk.Start
 				}
 			}
 		}
