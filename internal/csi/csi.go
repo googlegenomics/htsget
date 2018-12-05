@@ -47,7 +47,7 @@ func Read(r io.Reader, region genomics.Region) ([]*bgzf.Chunk, error) {
 type Reader struct {
 }
 
-// ReadSchemeSize reads the CSI formated index data header and returns the scheme size.
+// ReadSchemeSize reads the CSI formatted index data header and returns the scheme size.
 func (*Reader) ReadSchemeSize(csi io.Reader) (int32, int32, error) {
 	var csiHeader struct {
 		MinimumWidth   int32
