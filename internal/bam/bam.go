@@ -23,8 +23,8 @@ import (
 
 	"github.com/googlegenomics/htsget/internal/bgzf"
 	"github.com/googlegenomics/htsget/internal/binary"
-	"github.com/googlegenomics/htsget/internal/csi"
 	"github.com/googlegenomics/htsget/internal/genomics"
+	"github.com/googlegenomics/htsget/internal/index"
 )
 
 const (
@@ -92,76 +92,66 @@ func GetReferenceID(bam io.Reader, reference string) (int32, error) {
 // the header and all mapped reads that fall inside the specified region.  The
 // first chunk is always the BAM header.
 func Read(bai io.Reader, region genomics.Region) ([]*bgzf.Chunk, error) {
-	if err := binary.ExpectBytes(bai, []byte(baiMagic)); err != nil {
-		return nil, fmt.Errorf("reading magic: %v", err)
+	return index.Read(bai, region, baiMagic, &BAIReader{})
+}
+
+// BAIReader contains support for reading information from BAI formatted data.
+type BAIReader struct {
+}
+
+// ReadSchemeSize returns the scheme size.  BAM uses a 6 level (depth = 5) CSI binning scheme with
+// a minimum width of 14 bits.
+func (*BAIReader) ReadSchemeSize(_ io.Reader) (int32, int32, error) {
+	return 14, 5, nil
+}
+
+// ReadBin reads a bin from r.
+func (*BAIReader) ReadBin(r io.Reader) (*index.Bin, error) {
+	var bin struct {
+		ID     uint32
+		Chunks int32
+	}
+	if err := binary.Read(r, &bin); err != nil {
+		return nil, fmt.Errorf("reading bin header: %v", err)
 	}
 
-	var references int32
-	if err := binary.Read(bai, &references); err != nil {
-		return nil, fmt.Errorf("reading reference count: %v", err)
+	return &index.Bin{
+		ID:     bin.ID,
+		Chunks: bin.Chunks,
+	}, nil
+}
+
+// IsVirtualBin indicates if the provided ID identifies a virtual bin that is used to store
+// metadata.
+func (*BAIReader) IsVirtualBin(ID uint32) bool {
+	return ID == metadataID
+}
+
+// SelectChunks reads the list of intervals from the bai reader, filters the candidate chunks that
+// overlap the requested region and append them to the final list of chunks.
+func (*BAIReader) SelectChunks(bai io.Reader, region genomics.Region, candidates []*bgzf.Chunk, chunks []*bgzf.Chunk) ([]*bgzf.Chunk, error) {
+	var intervals int32
+	if err := binary.Read(bai, &intervals); err != nil {
+		return nil, fmt.Errorf("reading interval count: %v", err)
+	}
+	if intervals < 0 {
+		return nil, fmt.Errorf("invalid interval count (%d intervals)", intervals)
+	}
+	offsets := make([]uint64, intervals)
+	if err := binary.Read(bai, &offsets); err != nil {
+		return nil, fmt.Errorf("reading offsets: %v", err)
 	}
 
-	// BAM uses a 6 level (depth = 5) CSI binning scheme with a minimum width of 14 bits.
-	bins := csi.BinsForRange(region.Start, region.End, 14, 5)
+	var firstReadOffset bgzf.Address
+	if index := int(region.Start / linearWindowSize); index < len(offsets) {
+		firstReadOffset = bgzf.Address(offsets[index])
+	}
 
-	header := &bgzf.Chunk{End: bgzf.LastAddress}
-	chunks := []*bgzf.Chunk{header}
-	for i := int32(0); i < references; i++ {
-		var binCount int32
-		if err := binary.Read(bai, &binCount); err != nil {
-			return nil, fmt.Errorf("reading bin count: %v", err)
+	for _, chunk := range candidates {
+		if chunk.End < firstReadOffset {
+			continue
 		}
-		var candidates []*bgzf.Chunk
-		for j := int32(0); j < binCount; j++ {
-			var bin struct {
-				ID     uint32
-				Chunks int32
-			}
-			if err := binary.Read(bai, &bin); err != nil {
-				return nil, fmt.Errorf("reading bin header: %v", err)
-			}
-
-			includeChunks := csi.RegionContainsBin(region, i, bin.ID, bins)
-			for k := int32(0); k < bin.Chunks; k++ {
-				var chunk bgzf.Chunk
-				if err := binary.Read(bai, &chunk); err != nil {
-					return nil, fmt.Errorf("reading chunk: %v", err)
-				}
-				if bin.ID == metadataID {
-					continue
-				}
-				if includeChunks {
-					candidates = append(candidates, &chunk)
-				}
-				if header.End > chunk.Start {
-					header.End = chunk.Start
-				}
-			}
-		}
-
-		var intervals int32
-		if err := binary.Read(bai, &intervals); err != nil {
-			return nil, fmt.Errorf("reading interval count: %v", err)
-		}
-		if intervals < 0 {
-			return nil, fmt.Errorf("invalid interval count (%d intervals)", intervals)
-		}
-		offsets := make([]uint64, intervals)
-		if err := binary.Read(bai, &offsets); err != nil {
-			return nil, fmt.Errorf("reading offsets: %v", err)
-		}
-
-		var firstReadOffset bgzf.Address
-		if index := int(region.Start / linearWindowSize); index < len(offsets) {
-			firstReadOffset = bgzf.Address(offsets[index])
-		}
-
-		for _, chunk := range candidates {
-			if chunk.End < firstReadOffset {
-				continue
-			}
-			chunks = append(chunks, chunk)
-		}
+		chunks = append(chunks, chunk)
 	}
 	return chunks, nil
 }

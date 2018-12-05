@@ -16,58 +16,72 @@
 package csi
 
 import (
+	"compress/gzip"
+	"fmt"
+	"io"
+	"io/ioutil"
+
+	"github.com/googlegenomics/htsget/internal/bgzf"
+	"github.com/googlegenomics/htsget/internal/binary"
 	"github.com/googlegenomics/htsget/internal/genomics"
+	"github.com/googlegenomics/htsget/internal/index"
 )
 
-// RegionContainsBin indicates if the given region contains the bin described by
-// referenceID and binID.
-func RegionContainsBin(region genomics.Region, referenceID int32, binID uint32, bins []uint16) bool {
-	if region.ReferenceID >= 0 && referenceID != region.ReferenceID {
-		return false
-	}
+const (
+	csiMagic = "CSI\x01"
+)
 
-	if region.Start == 0 && region.End == 0 {
-		return true
+// Read reads CSI formatted index data from r and returns a set of BGZF chunks covering the header
+// and all mapped reads that fall inside the specified region.  The first chunk is always the BCF
+// header.
+func Read(r io.Reader, region genomics.Region) ([]*bgzf.Chunk, error) {
+	csi, err := gzip.NewReader(r)
+	if err != nil {
+		return nil, fmt.Errorf("initializing gzip reader: %v", err)
 	}
+	defer csi.Close()
+	return index.Read(csi, region, csiMagic, &Reader{})
+}
 
-	for _, id := range bins {
-		if uint32(id) == binID {
-			return true
-		}
+// Reader contains support for reading information from CSI formatted data.
+type Reader struct {
+}
+
+// ReadSchemeSize reads the CSI formatted index data header and returns the scheme size.
+func (*Reader) ReadSchemeSize(csi io.Reader) (int32, int32, error) {
+	var csiHeader struct {
+		MinimumWidth   int32
+		Depth          int32
+		AuxilaryLength int32
 	}
+	if err := binary.Read(csi, &csiHeader); err != nil {
+		return 0, 0, fmt.Errorf("reading the csi header: %v", err)
+	}
+	if _, err := io.CopyN(ioutil.Discard, csi, int64(csiHeader.AuxilaryLength)); err != nil {
+		return 0, 0, fmt.Errorf("reading past auxiliary data: %v", err)
+	}
+	return csiHeader.MinimumWidth, csiHeader.Depth, nil
+}
+
+// ReadBin reads a bin from r.
+func (*Reader) ReadBin(r io.Reader) (*index.Bin, error) {
+	var bin index.Bin
+	if err := binary.Read(r, &bin); err != nil {
+		return nil, fmt.Errorf("reading bin header: %v", err)
+	}
+	return &bin, nil
+}
+
+// IsVirtualBin indicates if the provided ID identifies a virtual bin that is used to store
+// metadata.
+func (*Reader) IsVirtualBin(uint32) bool {
 	return false
 }
 
-// BinsForRange returns the list of bins that may overlap with the zero-based region
-// defined by [start, end). The minShift and depth parameters control the minimum interval width
-// and number of binning levels, respectively.
-func BinsForRange(start, end uint32, minShift, depth int32) []uint16 {
-	maxWidth := maximumBinWidth(minShift, depth)
-	if end == 0 || end > maxWidth {
-		end = maxWidth
+// SelectChunks appends the candidate chunks to the final list of chunks.
+func (*Reader) SelectChunks(_ io.Reader, _ genomics.Region, candidates []*bgzf.Chunk, chunks []*bgzf.Chunk) ([]*bgzf.Chunk, error) {
+	for _, chunk := range candidates {
+		chunks = append(chunks, chunk)
 	}
-	if end <= start {
-		return nil
-	}
-	if start > maxWidth {
-		return nil
-	}
-
-	// This is derived from the C examples in the CSI index specification.
-	end--
-	var bins []uint16
-	for l, t, s := uint(0), uint(0), uint(minShift+depth*3); l <= uint(depth); l++ {
-		b := t + (uint(start) >> s)
-		e := t + (uint(end) >> s)
-		for i := b; i <= e; i++ {
-			bins = append(bins, uint16(i))
-		}
-		s -= 3
-		t += 1 << (l * 3)
-	}
-	return bins
-}
-
-func maximumBinWidth(minShift, depth int32) uint32 {
-	return uint32(1 << uint32(minShift+depth*3))
+	return chunks, nil
 }
