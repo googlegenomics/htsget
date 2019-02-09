@@ -35,11 +35,13 @@ func main() {
 	router := gin.Default()
 
 	var blockHandler func(c *gin.Context)
-	// var readsHandler func(c gin.Context)
+	var readsHandler func(c *gin.Context)
 
 	if *directory != "" {
 		blockHandler = file.NewBlockHandler(*directory)
-		router.GET("/user/:id", blockHandler)
+		router.GET("/block/:id", blockHandler)
+		readsHandler = file.NewReadsHandler(*directory, *blockSize)
+		router.GET("/reads/:id", readsHandler)
 	} else if *azureBuckets != "" {
 
 	} else {
