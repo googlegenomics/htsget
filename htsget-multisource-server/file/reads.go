@@ -53,7 +53,8 @@ func NewReadsHandler(directory string, blockSize uint64) func(c *gin.Context) {
 
 		for _, c := range chunks {
 			urls = append(urls, gin.H{
-				"url": "http://localhost:8080/reads/" + id + "?start=" + string(c.Start) + "&end=" + string(c.End),
+				//TODO fix this thing
+				"url": "http://localhost:8080/block/" + id + "?start=" + string(c.Start) + "&end=" + string(c.End),
 			})
 		}
 		c.JSON(200, gin.H{
