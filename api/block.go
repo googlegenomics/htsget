@@ -29,8 +29,15 @@ type blockRequest struct {
 	object *storage.ObjectHandle
 	chunk  bgzf.Chunk
 }
+type BlockReader func(start int64, length int64) (io.ReadCloser, error)
 
-func (req *blockRequest) handle(ctx context.Context) (io.ReadCloser, error) {
+func rangeReaderBuilder(req *blockRequest, ctx context.Context) BlockReader {
+	return func(start int64, length int64) (io.ReadCloser, error) {
+		return req.object.NewRangeReader(ctx, start, length)
+	}
+}
+
+func (req *blockRequest) handle(ctx context.Context, br BlockReader) (io.ReadCloser, error) {
 	start, end := req.chunk.Start, req.chunk.End
 	head, tail := int64(start.BlockOffset()), int64(end.BlockOffset())
 
