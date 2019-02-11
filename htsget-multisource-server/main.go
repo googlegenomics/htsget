@@ -39,13 +39,14 @@ func main() {
 
 	if *directory != "" {
 		blockHandler = file.NewBlockHandler(*directory)
-		router.GET("/block/:id", blockHandler)
 		readsHandler = file.NewReadsHandler(*directory, *blockSize)
-		router.GET("/reads/:id", readsHandler)
 	} else if *azureBuckets != "" {
 
 	} else {
 		panic("no directory or buckets specified")
 	}
+
+	router.GET("/block/:id", blockHandler)
+	router.GET("/reads/:id", readsHandler)
 	router.Run(":" + string(*port))
 }
