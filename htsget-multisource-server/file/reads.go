@@ -12,7 +12,7 @@ import (
 	"github.com/googlegenomics/htsget/htsget-multisource-server/utils"
 )
 
-func NewReadsHandler(directory string, blockSize uint64) func(c *gin.Context) {
+func NewReadsHandler(directory string, blockSize uint64, baseURl string) func(c *gin.Context) {
 	return func(c *gin.Context) {
 		chunk, id, err := utils.HTSGETParams(map[string]string{
 			"start": c.Query("start"),
@@ -54,7 +54,7 @@ func NewReadsHandler(directory string, blockSize uint64) func(c *gin.Context) {
 		for _, c := range chunks {
 			urls = append(urls, gin.H{
 				//TODO fix this thing
-				"url": "http://localhost:8080/block/" + id + "?start=" + string(c.Start) + "&end=" + string(c.End),
+				"url": baseURl + "/block/" + id + "?start=" + string(c.Start) + "&end=" + string(c.End),
 			})
 		}
 		c.JSON(200, gin.H{

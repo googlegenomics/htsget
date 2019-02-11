@@ -8,6 +8,8 @@ import (
 	"github.com/googlegenomics/htsget/htsget-multisource-server/file"
 )
 
+const baseUrl = "http://localhost:8080"
+
 var (
 	port      = flag.Int("port", 8080, "HTTP service port")
 	blockSize = flag.Uint64("block_size", 1024*1024*1024, "block size soft limit")
@@ -39,7 +41,7 @@ func main() {
 
 	if *directory != "" {
 		blockHandler = file.NewBlockHandler(*directory)
-		readsHandler = file.NewReadsHandler(*directory, *blockSize)
+		readsHandler = file.NewReadsHandler(*directory, *blockSize, baseUrl)
 	} else if *azureBuckets != "" {
 
 	} else {
