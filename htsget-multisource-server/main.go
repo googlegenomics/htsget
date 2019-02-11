@@ -8,6 +8,7 @@ import (
 	"github.com/googlegenomics/htsget/htsget-multisource-server/file"
 )
 
+//TODO make this an environment variable or something
 const baseUrl = "http://localhost:8080"
 
 var (
