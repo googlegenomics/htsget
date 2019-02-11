@@ -19,6 +19,9 @@ func (f fileOffsetReader) Read(b []byte) (int, error) {
 	if f.Length <= 0 {
 		return 0, io.EOF
 	}
+	if len(b) > int(f.Length) {
+		b = b[:f.Length]
+	}
 	readBytes, err := f.File.Read(b)
 	if err != nil {
 		return readBytes, err
