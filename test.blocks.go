@@ -7,7 +7,7 @@ import (
 
 	"github.com/googlegenomics/htsget/block"
 	"github.com/googlegenomics/htsget/internal/bgzf"
-	"github.com/googlegenomics/htsget/source/file"
+	"github.com/googlegenomics/htsget/sources/file"
 )
 
 const testFile = "/Users/aaliomer/github/htsget/api/testdata/wgs_bam_NA12878_20k_b37_NA12878"
