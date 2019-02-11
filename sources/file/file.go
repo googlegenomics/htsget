@@ -16,13 +16,16 @@ type fileOffsetReader struct {
 }
 
 func (f fileOffsetReader) Read(b []byte) (int, error) {
-	numBytes := int64(len(b))
 	if f.Length <= 0 {
 		return 0, io.EOF
 	}
-	f.Start += numBytes
-	f.Length -= numBytes
-	return f.File.Read(b)
+	readBytes, err := f.File.Read(b)
+	if err != nil {
+		return readBytes, err
+	}
+	f.Start += int64(readBytes)
+	f.Length -= int64(readBytes)
+	return readBytes, err
 
 }
 
