@@ -12,6 +12,7 @@ import (
 	"github.com/googlegenomics/htsget/htsget-multisource-server/utils"
 )
 
+//NewBlockHandler takes in a directory and returns a handler that returns a block
 func NewBlockHandler(directory string) func(c *gin.Context) {
 	return func(c *gin.Context) {
 
