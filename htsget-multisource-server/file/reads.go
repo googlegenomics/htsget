@@ -24,7 +24,7 @@ func NewReadsHandler(directory string, blockSize uint64, baseURl string) func(c 
 			c.String(400, "Error parsing params")
 		}
 
-		f, err := os.Open(directory + "/" + id + ".bam.bai")
+		f, err := os.Open(directory + "/" + id + ".bam")
 
 		if err != nil {
 			c.String(400, "Error finding the file")
@@ -37,7 +37,13 @@ func NewReadsHandler(directory string, blockSize uint64, baseURl string) func(c 
 			c.String(400, "Error processing reference name")
 			return
 		}
+		f, err = os.Open(directory + "/" + id + ".bam.bai")
 
+		if err != nil {
+			c.String(400, "Error finding the file")
+			return
+		}
+		defer f.Close()
 		chunks, err := reads.Chunks(f, genomics.Region{
 			ReferenceID: ref,
 			Start:       uint32(chunk.Start),
