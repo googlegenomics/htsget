@@ -30,7 +30,7 @@ var (
 	// This information helps Google determine how well the software is
 	// performing and where improvements should be made.  No user identifying
 	// information is ever sent to Google.
-	trackUsage = flag.Bool("track_usage", false, "anonymous usage tracking")
+	// trackUsage = flag.Bool("track_usage", false, "anonymous usage tracking")
 )
 
 func main() {

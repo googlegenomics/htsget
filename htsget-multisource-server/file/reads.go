@@ -12,7 +12,8 @@ import (
 	"github.com/googlegenomics/htsget/htsget-multisource-server/utils"
 )
 
-func NewReadsHandler(directory string, blockSize uint64, baseURl string) func(c *gin.Context) {
+//NewReadsHandler builds a gin handler
+func NewReadsHandler(directory string, blockSize uint64, baseURL string) func(c *gin.Context) {
 	return func(c *gin.Context) {
 		chunk, id, err := utils.HTSGETParams(map[string]string{
 			"start": c.Query("start"),
@@ -32,7 +33,7 @@ func NewReadsHandler(directory string, blockSize uint64, baseURl string) func(c 
 		}
 		defer f1.Close()
 
-		ref, err := bam.GetReferenceID(f1, c.Param("referenceName"))
+		ref, err := bam.GetReferenceID(f1, c.Query("referenceName"))
 		if err != nil {
 			c.String(400, "Error processing reference name")
 			return
@@ -57,11 +58,13 @@ func NewReadsHandler(directory string, blockSize uint64, baseURl string) func(c 
 
 		urls := make([]gin.H, len(chunks))
 
-		for _, c := range chunks {
-			urls = append(urls, gin.H{
-				//TODO fix this thing
-				"url": baseURl + "/block/" + id + "?start=" + string(c.Start) + "&end=" + string(c.End),
-			})
+		for i, c := range chunks {
+			if c != nil {
+				urls[i] = gin.H{
+					//TODO fix this thing
+					"url": baseURL + "/block/" + id + "?start=" + string(c.Start) + "&end=" + string(c.End),
+				}
+			}
 		}
 		c.JSON(200, gin.H{
 			"htsget": gin.H{
