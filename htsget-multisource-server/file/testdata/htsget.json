@@ -1,0 +1,1 @@
+{"htsget":{"format":"BAM","urls":[{"url":"http://yolo:8080/block/wgs_bam_NA12878_20k_b37_NA12878?start=0&end=14705"},{"url":"http://yolo:8080/block/wgs_bam_NA12878_20k_b37_NA12878?start=896301105279&end=908852283533"}]}}

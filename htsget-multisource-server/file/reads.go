@@ -1,7 +1,11 @@
 package file
 
 import (
+	"encoding/json"
 	"os"
+	"strconv"
+
+	"github.com/googlegenomics/htsget/htsget-multisource-server/model"
 
 	"github.com/googlegenomics/htsget/reads"
 
@@ -56,21 +60,30 @@ func NewReadsHandler(directory string, blockSize uint64, baseURL string) func(c 
 			return
 		}
 
-		urls := make([]gin.H, len(chunks))
+		htsget := model.HTSGetResponse{}
+		htsget.Htsget.Format = "BAM"
+		htsget.Htsget.Urls = make([]model.URL, len(chunks))
 
 		for i, c := range chunks {
 			if c != nil {
-				urls[i] = gin.H{
-					//TODO fix this thing
-					"url": baseURL + "/block/" + id + "?start=" + string(c.Start) + "&end=" + string(c.End),
+				start := strconv.FormatUint(uint64(c.Start), 10)
+				end := strconv.FormatUint(uint64(c.End), 10)
+				htsget.Htsget.Urls[i] = model.URL{
+					Url: baseURL + "/block/" + id + "?start=" + start + "&end=" + end,
 				}
 			}
 		}
-		c.JSON(200, gin.H{
-			"htsget": gin.H{
-				"format": "BAM",
-				"urls":   urls,
-			},
-		})
+
+		enc := json.NewEncoder(c.Writer)
+		enc.SetEscapeHTML(false)
+
+		err = enc.Encode(&htsget)
+		if err != nil {
+			c.String(400, "Error generating result")
+			return
+		}
+
+		c.Header("Content-Type", "application/json")
+		c.Status(200)
 	}
 }

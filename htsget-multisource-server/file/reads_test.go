@@ -1,6 +1,7 @@
 package file
 
 import (
+	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -22,10 +23,11 @@ func TestReadRoute(t *testing.T) {
 	w := httptest.NewRecorder()
 	req, _ := http.NewRequest("GET", "/reads/wgs_bam_NA12878_20k_b37_NA12878?referenceName=X&start=34568064&end=72893114", nil)
 	router.ServeHTTP(w, req)
-	x := w.Body.String()
-	x = x
-	pwd, _ := os.Getwd()
-	pwd = pwd
+	f, err := os.Open("./testdata/htsget.json")
+	assert.Equal(t, nil, err)
+	bam, err := ioutil.ReadAll(f)
+	assert.Equal(t, nil, err)
+	assert.Equal(t, bam, w.Body.Bytes())
 	assert.Equal(t, 200, w.Code)
-	assert.Equal(t, "pong", w.Body.String())
+	f.Close()
 }
