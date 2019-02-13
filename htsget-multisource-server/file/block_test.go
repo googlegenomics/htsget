@@ -27,7 +27,8 @@ func TestBlockRoute(t *testing.T) {
 	assert.Equal(t, nil, err)
 	bam, err := ioutil.ReadAll(f)
 	assert.Equal(t, nil, err)
-	assert.Equal(t, bam, w.Body.Bytes())
+	bamHtsget := w.Body.Bytes()
+	assert.Equal(t, bam, bamHtsget)
 	assert.Equal(t, 200, w.Code)
 	f.Close()
 }

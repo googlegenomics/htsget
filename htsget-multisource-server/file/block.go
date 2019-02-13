@@ -44,28 +44,15 @@ func NewBlockHandler(directory string) func(c *gin.Context) {
 			c.String(400, "Error parsing file")
 			return
 		}
+		defer readCloser.Close()
+
 		all, err := ioutil.ReadAll(readCloser)
-		readCloser.Close() //no need to close this
 		if err != nil {
 			c.String(400, "Error reading file")
 			return
 		}
-		_, err = c.Writer.Write(all)
-		// c.Stream(func(w io.Writer) bool {
-		// 	stream := make([]byte, 4096)
-		// 	length, err1 := readCloser.Read(stream)
-		// 	if err1 != nil && err1 != io.EOF {
-		// 		c.String(400, "Error reading file")
-		// 		return false
-		// 	}
-		// 	stream = stream[:length]
-		// 	if err1 == io.EOF {
-		// 		_, err1 = w.Write(stream)
-		// 		return false
-		// 	}
-		// 	_, err1 = w.Write(stream)
-		// 	return true
-		// })
 		c.Header("Content-Type", "application/octet-stream")
+		_, err = c.Writer.Write(all)
+
 	}
 }
