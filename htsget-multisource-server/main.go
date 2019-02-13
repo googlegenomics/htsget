@@ -4,12 +4,11 @@ import (
 	"flag"
 
 	"github.com/gin-gonic/gin"
-
 	"github.com/googlegenomics/htsget/htsget-multisource-server/file"
 )
 
 //TODO make this an environment variable or something
-const baseUrl = "http://localhost:8080"
+const defaultBaseUrl = "http://localhost:8080"
 
 var (
 	port      = flag.Int("port", 8080, "HTTP service port")
@@ -18,6 +17,8 @@ var (
 	secure    = flag.Bool("secure", false, "serve in HTTPS-only mode and forward client bearer tokens")
 	httpsCert = flag.String("https_cert", "", "HTTPS certificate file")
 	httpsKey  = flag.String("https_key", "", "HTTPS key file")
+
+	baseURL = flag.String("base_url", defaultBaseUrl, "HTTPS key file")
 
 	azureBuckets = flag.String("azure-buckets", "", "if set, restricts reads to a comma-separated list of buckets")
 	directory    = flag.String("directory", "", "directory that contains bam/bai files")
@@ -36,13 +37,14 @@ var (
 func main() {
 	flag.Parse()
 	router := gin.Default()
+	// defer profile.Start(profile.MemProfile).Stop()
 
 	var blockHandler func(c *gin.Context)
 	var readsHandler func(c *gin.Context)
 
 	if *directory != "" {
 		blockHandler = file.NewBlockHandler(*directory)
-		readsHandler = file.NewReadsHandler(*directory, *blockSize, baseUrl)
+		readsHandler = file.NewReadsHandler(*directory, *blockSize, *baseURL)
 	} else if *azureBuckets != "" {
 
 	} else {
@@ -51,5 +53,5 @@ func main() {
 
 	router.GET("/block/:id", blockHandler)
 	router.GET("/reads/:id", readsHandler)
-	router.Run(":" + string(*port))
+	router.Run()
 }

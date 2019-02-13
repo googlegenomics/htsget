@@ -15,7 +15,10 @@ type fileOffsetReader struct {
 	Closed bool
 }
 
-func (f fileOffsetReader) Read(b []byte) (int, error) {
+func (f *fileOffsetReader) Read(b []byte) (int, error) {
+	if f.Closed {
+		return 0, io.ErrClosedPipe
+	}
 	if f.Length <= 0 {
 		return 0, io.EOF
 	}
@@ -34,8 +37,9 @@ func (f fileOffsetReader) Read(b []byte) (int, error) {
 
 //Close is a no-op function since the file passed to the struct is expected to be closed by external
 //TODO not sure if this is a good idea
-func (f fileOffsetReader) Close() error {
+func (f *fileOffsetReader) Close() error {
 	//NO-OP file is expected to be closed
+	f.Closed = true
 	return nil
 }
 
@@ -53,6 +57,6 @@ func NewFileRangeReader(file os.File) block.RangeReader {
 		if err != nil {
 			return nil, err
 		}
-		return f, nil
+		return &f, nil
 	}
 }

@@ -24,7 +24,7 @@ func (m ReadCloser) Read(b []byte) (int, error) {
 
 //Close closes files
 func (m ReadCloser) Close() error {
-	return m.Close()
+	return m.Closer.Close()
 }
 
 type multiCloser struct {
@@ -122,6 +122,6 @@ func ReadBlock(file RangeReader, chunk bgzf.Chunk) (io.ReadCloser, error) {
 
 	return &ReadCloser{
 		Reader: io.MultiReader(readers...),
-		Closer: multiCloser{closers},
+		Closer: &multiCloser{closers},
 	}, nil
 }

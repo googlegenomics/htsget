@@ -6,6 +6,7 @@ require (
 	github.com/gin-gonic/gin v1.3.0
 	github.com/google/uuid v1.1.0
 	github.com/mattn/go-isatty v0.0.4 // indirect
+	github.com/pkg/profile v1.2.1
 	github.com/stretchr/testify v1.2.2
 	github.com/ugorji/go/codec v0.0.0-20190204201341-e444a5086c43 // indirect
 	golang.org/x/oauth2 v0.0.0-20190115181402-5dab4167f31c

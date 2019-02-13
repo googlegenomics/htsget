@@ -76,14 +76,13 @@ func NewReadsHandler(directory string, blockSize uint64, baseURL string) func(c 
 
 		enc := json.NewEncoder(c.Writer)
 		enc.SetEscapeHTML(false)
-
+		c.Header("Content-Type", "application/json")
+		c.Status(200)
 		err = enc.Encode(&htsget)
 		if err != nil {
 			c.String(400, "Error generating result")
 			return
 		}
 
-		c.Header("Content-Type", "application/json")
-		c.Status(200)
 	}
 }
