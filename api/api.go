@@ -71,6 +71,12 @@ type Server struct {
 	whitelist        map[string]bool
 }
 
+type BamServer interface {
+	BlockReader(start int64, length int64) (io.ReadCloser, error)
+	BlockSizeLimit() uint64
+	io.Closer
+}
+
 // NewServer returns a new Server configured to use newStorageClient and
 // blockSizeLimit. The server will call storageClientFunc on each request to
 // determine which GCS storage client to use.
