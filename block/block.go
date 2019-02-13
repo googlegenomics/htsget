@@ -72,7 +72,7 @@ func ReadBlock(file RangeReader, chunk bgzf.Chunk) (io.ReadCloser, error) {
 
 	// Read the first block and reconstruct a prefix block.
 	if start.DataOffset() != 0 {
-		first, err := file(head, tail-head)
+		first, err := file(head, bgzf.MaximumBlockSize)
 		// defer first.Close()
 
 		decoded, length, err := bgzf.DecodeBlock(first)
@@ -103,7 +103,7 @@ func ReadBlock(file RangeReader, chunk bgzf.Chunk) (io.ReadCloser, error) {
 	// Read the last block and reconstruct a suffix block.
 	theEndBlock := end.DataOffset()
 	if theEndBlock != 0 {
-		last, err := file(head, tail-head)
+		last, err := file(head, bgzf.MaximumBlockSize)
 		if err != nil {
 			return nil, err
 		}
