@@ -21,12 +21,11 @@ import (
 	"io"
 	"io/ioutil"
 
-	"cloud.google.com/go/storage"
 	"github.com/googlegenomics/htsget/internal/bgzf"
 )
 
 type blockRequest struct {
-	object *storage.ObjectHandle
+	object ObjectHandle
 	chunk  bgzf.Chunk
 }
 

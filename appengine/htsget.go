@@ -5,7 +5,6 @@ import (
 	"os"
 	"strings"
 
-	"cloud.google.com/go/storage"
 	"github.com/googlegenomics/htsget/api"
 	"google.golang.org/appengine"
 )
@@ -20,6 +19,6 @@ func init() {
 	http.HandleFunc("/", mux.ServeHTTP)
 }
 
-func newAppEngineClient(req *http.Request) (*storage.Client, http.Header, error) {
+func newAppEngineClient(req *http.Request) (api.Client, http.Header, error) {
 	return api.NewClientFromBearerToken(req.WithContext(appengine.NewContext(req)))
 }
