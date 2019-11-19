@@ -20,7 +20,6 @@ package api
 
 import (
 	"bytes"
-	"context"
 	"encoding/base64"
 	"encoding/gob"
 	"encoding/json"
@@ -32,16 +31,11 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
-	"sync"
 
-	"cloud.google.com/go/storage"
 	"github.com/googlegenomics/htsget/internal/analytics"
 	"github.com/googlegenomics/htsget/internal/bam"
 	"github.com/googlegenomics/htsget/internal/bgzf"
 	"github.com/googlegenomics/htsget/internal/genomics"
-	"golang.org/x/oauth2"
-	"google.golang.org/api/googleapi"
-	"google.golang.org/api/option"
 )
 
 const (
@@ -62,7 +56,7 @@ var (
 // storage.Client to satisfy the incoming request. Any headers that caused this
 // particular client to be created are returned to allow block requests to be
 // generated correctly.
-type NewStorageClientFunc func(*http.Request) (*storage.Client, http.Header, error)
+type NewStorageClientFunc func(*http.Request) (Client, http.Header, error)
 
 // Server provides an htsget protocol server.  Must be created with NewServer.
 type Server struct {
@@ -124,7 +118,7 @@ func (server *Server) serveReads(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	data, err := gcs.Bucket(bucket).Object(object).NewRangeReader(ctx, 0, int64(server.blockSizeLimit))
+	data, err := gcs.NewObjectHandle(bucket, object).NewRangeReader(ctx, 0, int64(server.blockSizeLimit))
 	if err != nil {
 		writeError(w, newStorageError("opening data", err))
 		return
@@ -143,8 +137,9 @@ func (server *Server) serveReads(w http.ResponseWriter, req *http.Request) {
 	}
 
 	request := &readsRequest{
-		indexObjects: []*storage.ObjectHandle{gcs.Bucket(bucket).Object(object + ".bai"),
-			gcs.Bucket(bucket).Object(strings.TrimSuffix(object, ".bam") + ".bai"),
+		indexObjects: []ObjectHandle{
+			gcs.NewObjectHandle(bucket, object+".bai"),
+			gcs.NewObjectHandle(bucket, strings.TrimSuffix(object, ".bam")+".bai"),
 		},
 		blockSizeLimit: server.blockSizeLimit,
 		region:         region,
@@ -228,7 +223,7 @@ func (server *Server) serveBlocks(w http.ResponseWriter, req *http.Request) {
 	}
 
 	request := &blockRequest{
-		object: gcs.Bucket(bucket).Object(object),
+		object: gcs.NewObjectHandle(bucket, object),
 		chunk:  chunk,
 	}
 
@@ -362,24 +357,6 @@ func newNotFoundError(context string, err error) error {
 	return newApiError("NotFound", http.StatusNotFound, context, err)
 }
 
-func newStorageError(context string, err error) error {
-	if err == errMissingOrInvalidToken {
-		return newPermissionDeniedError(context, err)
-	}
-	if err == storage.ErrObjectNotExist {
-		return newNotFoundError("object does not exist", err)
-	}
-	if err, ok := err.(*googleapi.Error); ok {
-		switch err.Code {
-		case http.StatusUnauthorized:
-			return newInvalidAuthenticationError(context, err)
-		case http.StatusForbidden:
-			return newPermissionDeniedError(context, err)
-		}
-	}
-	return err
-}
-
 // writeError writes either a JSON object or bare HTTP error describing err to
 // w.  A JSON object is written only when the error has a name and code defined
 // by the htsget specification.
@@ -403,61 +380,6 @@ func writeJSON(w http.ResponseWriter, code int, v interface{}) {
 	w.Header().Add("Content-type", "application/json")
 	w.WriteHeader(code)
 	json.NewEncoder(w).Encode(v)
-}
-
-var (
-	defaultStorageClient           *storage.Client
-	initializeDefaultStorageClient sync.Once
-)
-
-func newClientWithOptions(opts ...option.ClientOption) (*storage.Client, http.Header, error) {
-	initializeDefaultStorageClient.Do(func() {
-		gcs, err := storage.NewClient(context.Background(), opts...)
-		if err != nil {
-			log.Fatalf("Creating default storage client: %v", err)
-		}
-		defaultStorageClient = gcs
-	})
-	return defaultStorageClient, nil, nil
-}
-
-// NewDefaultClient returns a storage client that uses the application default
-// credentials.  It caches the storage client for efficiency.
-func NewDefaultClient(_ *http.Request) (*storage.Client, http.Header, error) {
-	return newClientWithOptions()
-}
-
-// NewPublicClient returns a storage client that does not use any form of
-// client authorization.  It can only be used to read publicly-readable
-// objects. It caches the storage client for efficiency.
-func NewPublicClient(_ *http.Request) (*storage.Client, http.Header, error) {
-	return newClientWithOptions(option.WithHTTPClient(http.DefaultClient))
-}
-
-// NewClientFromBearerToken constructs a storage client that uses the OAuth2
-// bearer token found in req to make storage requests.  It returns the
-// authorization header containing the bearer token as well to allow subsequent
-// requests to be authenticated correctly.
-func NewClientFromBearerToken(req *http.Request) (*storage.Client, http.Header, error) {
-	authorization := req.Header.Get("Authorization")
-
-	fields := strings.Split(authorization, " ")
-	if len(fields) != 2 || fields[0] != "Bearer" {
-		return nil, nil, errMissingOrInvalidToken
-	}
-
-	token := oauth2.Token{
-		TokenType:   fields[0],
-		AccessToken: fields[1],
-	}
-	client, err := storage.NewClient(req.Context(), option.WithTokenSource(oauth2.StaticTokenSource(&token)))
-	if err != nil {
-		return nil, nil, fmt.Errorf("creating client with token source: %v", err)
-	}
-
-	return client, map[string][]string{
-		"Authorization": []string{authorization},
-	}, nil
 }
 
 type forwardOrigin func(w http.ResponseWriter, req *http.Request)

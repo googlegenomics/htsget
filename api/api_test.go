@@ -179,8 +179,8 @@ func testQuery(ctx context.Context, t *testing.T, url string) *http.Response {
 	if err != nil {
 		t.Fatalf("Failed to create storage client: %v", err)
 	}
-	newStorageClient := func(*http.Request) (*storage.Client, http.Header, error) {
-		return gcs, nil, nil
+	newStorageClient := func(*http.Request) (Client, http.Header, error) {
+		return GCSClient{gcs}, nil, nil
 	}
 
 	mux := http.NewServeMux()

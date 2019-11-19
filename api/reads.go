@@ -17,24 +17,24 @@ package api
 import (
 	"context"
 	"fmt"
+	"io"
 
-	"cloud.google.com/go/storage"
 	"github.com/googlegenomics/htsget/internal/bam"
 	"github.com/googlegenomics/htsget/internal/bgzf"
 	"github.com/googlegenomics/htsget/internal/genomics"
 )
 
 type readsRequest struct {
-	indexObjects   []*storage.ObjectHandle
+	indexObjects   []ObjectHandle
 	blockSizeLimit uint64
 	region         genomics.Region
 }
 
 func (req *readsRequest) handle(ctx context.Context) ([]*bgzf.Chunk, error) {
-	var index *storage.Reader
+	var index io.ReadCloser
 	var err error
 	for _, object := range req.indexObjects {
-		index, err = object.NewReader(ctx)
+		index, err = object.NewRangeReader(ctx, 0, -1)
 		if err == nil {
 			break
 		}
